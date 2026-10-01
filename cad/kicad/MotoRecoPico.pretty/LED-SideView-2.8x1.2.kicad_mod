@@ -1,0 +1,167 @@
+(footprint "LED-SideView-2.8x1.2"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "Side-view chip LED, 2.8 x 1.2 x 0.8mm body. Soldering pattern common to Kodenshi LP812-010(T) and Sharp GM4ZR83200AE: two 1.4 x 0.9mm pads, 1.0mm gap, centres at X = +/-1.2mm. Pad 1 = CATHODE, pad 2 = ANODE. LIGHT LEAVES THROUGH THE +Y LONG SIDE - point +Y at the enclosure window.")
+	(tags "LED side view sidelook")
+	(property "Reference" "REF**"
+		(at 0 -3 0)
+		(layer "F.SilkS")
+		(uuid "94e58aea-af52-4ffa-a30a-5bcb07fbe11e")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Value" "LED-SideView-2.8x1.2"
+		(at 0 3 0)
+		(layer "F.Fab")
+		(uuid "07876112-b437-43c7-bcb2-bad9e9ba3d58")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "dabded29-9e34-4984-93b8-730d285eb85a")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "932c9a12-9997-456b-80fb-dbc1e78c1006")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -2.049999 -0.6)
+		(end -2.049999 0.6)
+		(stroke
+			(width 0.25)
+			(type default)
+		)
+		(layer "F.SilkS")
+		(uuid "7b4aef6b-f091-4871-bd7f-5bc21b32247a")
+	)
+	(fp_line
+		(start -2.1 -0.85)
+		(end 2.1 -0.85)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "f47b08c8-147e-461a-ba44-611ea2524bc5")
+	)
+	(fp_line
+		(start -2.1 1.05)
+		(end -2.1 -0.85)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "3bd2d032-3edc-4ec0-829a-2682900395b7")
+	)
+	(fp_line
+		(start 2.1 -0.85)
+		(end 2.1 1.05)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "b2e83132-631b-4136-8a67-70e1bd265c07")
+	)
+	(fp_line
+		(start 2.1 1.05)
+		(end -2.1 1.05)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "7bfabb7e-7b23-40c3-9820-2dbb6f3d512d")
+	)
+	(fp_line
+		(start -1.6 0.9)
+		(end 1.6 0.9)
+		(stroke
+			(width 0.3)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "57fae50a-d3de-4d93-ba2e-c546b15281ee")
+	)
+	(fp_line
+		(start -1.4 -0.6)
+		(end 1.4 -0.6)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "17c35639-b94a-49e7-b705-71e4c0bce0ea")
+	)
+	(fp_line
+		(start -1.4 0.6)
+		(end -1.4 -0.6)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "ca5978f2-37c8-4ca4-be47-2420b52cae46")
+	)
+	(fp_line
+		(start 1.4 -0.6)
+		(end 1.4 0.6)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "581c5101-22c4-4593-8e45-8b7f87229dbf")
+	)
+	(fp_line
+		(start 1.4 0.6)
+		(end -1.4 0.6)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "ed8820f8-e283-4eb8-ac7c-54eb796172f6")
+	)
+	(pad "1" smd rect
+		(at -1.2 0)
+		(size 1.4 0.9)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "f8911f5b-7e6f-4e28-9bb3-87ff55362227")
+	)
+	(pad "2" smd rect
+		(at 1.2 0)
+		(size 1.4 0.9)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "6b7b530a-cadd-4be8-8f20-a2d13f4d79e8")
+	)
+	(embedded_fonts no)
+)

@@ -1,0 +1,71 @@
+﻿U3: dropped 38 courtyard/silk shapes and 2 keep-out zones
+wrote E:\Claude\MotoRecoPico\cad\kicad\MotoRecoPico.kicad_pcb
+board 21.0 x 61.0 mm = 12.81 cm2
+placed top=22 bottom=13 total=35
+nets=37 pads netted=151
+1005 chips: 19, all on TOP
+TOP   : C10 C2 C3 C4 C5 C7 C8 J2 R1 R10 R11 R12 R13 R14 R2 R3 R4 R6 R7 R8 U2 U3
+BOTTOM: C11 C6 D1 D2 D3 D6 F1 J1 J3 Q1 Q2 U1 Y1
+
+spilled out of their zone (still placed):
+  C3 spilled out of [VIO decoupling], now 6.3mm away
+  C4 spilled out of [VDD/VDDA decoupling + CAN pull-ups], now 6.3mm away
+  C5 spilled out of [VDD/VDDA decoupling + CAN pull-ups], now 7.5mm away
+  R6 spilled out of [VDD/VDDA decoupling + CAN pull-ups], now 7.9mm away
+  R7 spilled out of [VDD/VDDA decoupling + CAN pull-ups], now 8.5mm away
+  C10 spilled out of [SD pull-ups + LED resistor], now 4.0mm away
+  R14 spilled out of [SD pull-ups + LED resistor], now 5.8mm away
+
+TOP occupancy (keepout boxes, y order):
+  U3   x   0.56.. 20.44  y   8.32.. 58.68   (19.88 x 50.36)
+  C2   x  16.30.. 17.81  y   9.50.. 12.51   (1.51 x 3.01)
+  R1   x   3.15..  6.16  y   9.50.. 11.01   (3.01 x 1.51)
+  R3   x   6.90..  9.91  y   9.50.. 11.01   (3.01 x 1.51)
+  R4   x  10.65.. 13.66  y   9.50.. 11.01   (3.01 x 1.51)
+  R2   x   3.15..  6.16  y  11.75.. 13.26   (3.01 x 1.51)
+  R7   x  14.90.. 17.91  y  16.75.. 18.26   (3.01 x 1.51)
+  C3   x   3.15..  6.16  y  19.00.. 20.51   (3.01 x 1.51)
+  C4   x  14.90.. 17.91  y  19.00.. 20.51   (3.01 x 1.51)
+  C5   x  11.15.. 14.16  y  19.00.. 20.51   (3.01 x 1.51)
+  U2   x   5.12.. 15.88  y  21.27.. 30.73   (10.75 x 9.45)
+  R8   x   6.00..  9.01  y  31.50.. 33.01   (3.01 x 1.51)
+  R6   x  10.40.. 13.41  y  31.50.. 33.01   (3.01 x 1.51)
+  R14  x   6.90..  9.91  y  34.50.. 36.01   (3.01 x 1.51)
+  C10  x  10.65.. 12.16  y  35.25.. 38.26   (1.51 x 3.01)
+  C7   x   3.15..  6.16  y  36.90.. 38.41   (3.01 x 1.51)
+  C8   x   6.90..  9.91  y  36.90.. 38.41   (3.01 x 1.51)
+  R10  x  10.65.. 13.66  y  39.00.. 40.51   (3.01 x 1.51)
+  R11  x  14.40.. 17.41  y  39.00.. 40.51   (3.01 x 1.51)
+  R12  x   3.15..  6.16  y  39.25.. 40.76   (3.01 x 1.51)
+  R13  x   6.90..  9.91  y  39.25.. 40.76   (3.01 x 1.51)
+  J2   x   2.65.. 18.41  y  42.76.. 60.51   (15.75 x 17.75)
+
+BOTTOM occupancy (keepout boxes, y order):
+  J1   x   0.57.. 20.43  y  -0.12..  8.12   (19.85 x 8.25)
+  D1   x   7.83.. 12.57  y   8.57.. 10.93   (4.75 x 2.35)
+  F1   x  12.99.. 17.61  y   8.60.. 10.90   (4.61 x 2.31)
+  Q2   x   3.23..  7.38  y   8.62.. 12.07   (4.15 x 3.45)
+  U1   x   3.58.. 15.43  y  13.03.. 20.93   (11.85 x 7.90)
+  D2   x   3.15.. 10.20  y  21.60.. 25.15   (7.05 x 3.55)
+  Q1   x   3.15..  7.06  y  25.95.. 29.40   (3.91 x 3.45)
+  C6   x   7.90..  9.41  y  25.95.. 28.96   (1.51 x 3.01)
+  Y1   x  12.14.. 17.86  y  28.95.. 41.05   (5.71 x 12.11)
+  D3   x   3.15..  7.90  y  30.20.. 32.55   (4.75 x 2.35)
+  C11  x   3.15..  6.16  y  43.30.. 44.81   (3.01 x 1.51)
+  J3   x  13.18.. 16.82  y  43.58.. 56.42   (3.65 x 12.85)
+  D6   x   8.38.. 12.62  y  58.92.. 60.88   (4.25 x 1.95)
+
+12V chain, pin to pin along the flow:
+  V12_RAW     J1.8         (17.50, 6.30) -> F1.1    (16.70, 9.75)   3.54 mm
+  V12_FUSED   F1.2         (13.90, 9.75) -> D1.2    (11.85, 9.75)   2.05 mm
+  V12P        D1.1         ( 8.55, 9.75) -> Q2.6    ( 6.44,11.30)   2.62 mm
+  V12_SW      Q2.2/3/4/5   ( 5.30, 9.88) -> U1.1    ( 6.96,15.20)   5.58 mm
+  TOTAL                                                      13.79 mm
+
+clearance check at the connector end:
+  Pico header pads span y 8.57 .. 58.43
+  MQS housing overhangs the board to y = 8.00
+  gap = 0.57 mm
+  Y1 pads (14.25,31.81)-(15.75,38.19)
+  J2 pads (3.17,43.27)-(17.82,59.92)
+  D6 pads (8.60,59.35)-(12.40,60.25)

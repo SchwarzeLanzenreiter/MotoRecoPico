@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "MotoRecoPico")(type "KiCad")(uri "${KIPRJMOD}/MotoRecoPico.kicad_sym")(options "")(descr "MotoRecoPico project symbols"))
+)

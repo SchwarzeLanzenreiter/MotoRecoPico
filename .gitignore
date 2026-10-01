@@ -1,0 +1,17 @@
+# KiCad local state and per-run intermediates. The ROUTED .kicad_pcb is a
+# deliverable and IS tracked: rebuilding the board changes net-pin UUIDs, which
+# steers Freerouting differently, so a reroute never reproduces the same copper.
+cad/kicad/.history/
+cad/kicad/*.kicad_prl
+cad/kicad/drc.json
+cad/kicad/erc.json
+cad/kicad/MotoRecoPico.net
+cad/kicad/MotoRecoPico.dsn
+cad/kicad/MotoRecoPico.ses
+fp-info-cache
+*.bak
+_autosave-*
+*.lck
+
+# firmware build output
+firmware/build/
