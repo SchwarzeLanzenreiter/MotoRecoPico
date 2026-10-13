@@ -143,6 +143,56 @@ static bool flush_buffer(void)
 	return true;
 }
 
+#define TMP_SWEEP_MAX	100		// bounds the rescans below on a card that is somehow full of them
+
+// a 0 byte TMPnnnnn.DAT is a log that was opened and lost power before a single record reached
+// the card: flashing new firmware reboots the pico right after the first boot has created one.
+// it holds nothing, but it keeps the number and sits on the card for good. a TMP file WITH data
+// is a trip that never got a GPS date and is left alone, it is the only copy of that ride.
+//
+// one file per directory pass, because unlinking under an open directory scan is not something
+// FatFs promises to handle. returns how many were deleted
+static int sweep_empty_temp_files(void)
+{
+	static const char prefix[] = LOG_TMP_PREFIX;
+	int deleted = 0;
+
+	while (deleted < TMP_SWEEP_MAX) {
+		DIR dir;
+		FILINFO info;
+		char path[sizeof(LOG_DIR) + sizeof(info.fname)];
+		bool found = false;
+
+		if (f_opendir(&dir, LOG_DIR) != FR_OK) {
+			break;
+		}
+
+		while (f_readdir(&dir, &info) == FR_OK && info.fname[0] != '\0') {
+			size_t len = strlen(info.fname);
+
+			if ((info.fattrib & AM_DIR) || info.fsize != 0 ||
+			    strncmp(info.fname, prefix, sizeof(prefix) - 1) != 0 ||
+			    len < 4 || strcmp(info.fname + len - 4, ".DAT") != 0) {
+				continue;
+			}
+
+			snprintf(path, sizeof(path), "%s%s", LOG_DIR, info.fname);
+			found = true;
+			break;
+		}
+
+		f_closedir(&dir);
+
+		if (!found || f_unlink(path) != FR_OK) {
+			break;
+		}
+
+		deleted++;
+	}
+
+	return deleted;
+}
+
 // picks the first free TMPnnnnn.DAT. used until GPS tells us the date, and after a card swap
 static bool open_temp_file(void)
 {
@@ -209,6 +259,16 @@ bool logger_mount(void)
 	}
 
 	g_mounted = true;
+
+	// before open_new_file, so the number a deleted file held is free for this boot to reuse
+	{
+		int swept = sweep_empty_temp_files();
+
+		if (swept > 0) {
+			logger_debug("deleted %d empty %s*.DAT left by a reboot before any record", swept,
+				LOG_TMP_PREFIX);
+		}
+	}
 
 	if (!open_new_file()) {
 		f_mount(NULL, "", 0);
