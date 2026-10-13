@@ -30,7 +30,7 @@ $bat = Join-Path $out "build.bat"
 call "$($vcvars.FullName)" >nul
 if errorlevel 1 exit /b 1
 cd /d "$out"
-cl /nologo /std:c11 /W3 /I"$src" /Fe:test_nmea.exe "$here\test_nmea.c" "$src\nmea.c" "$src\record.c" "$src\power.c" "$src\settings.c" "$src\wallclock.c"
+cl /nologo /std:c11 /W3 /I"$src" /Fe:test_nmea.exe "$here\test_nmea.c" "$src\nmea.c" "$src\gps_cmd.c" "$src\record.c" "$src\power.c" "$src\settings.c" "$src\wallclock.c"
 if errorlevel 1 exit /b 1
 "@ | Out-File -FilePath $bat -Encoding ascii
 

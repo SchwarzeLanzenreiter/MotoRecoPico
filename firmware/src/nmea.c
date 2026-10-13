@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "config.h"
 #include "nmea.h"
 
 #define KNOT_TO_MPS (1852.0 / 3600.0)
@@ -204,6 +205,14 @@ static int64_t days_from_civil(int y, int m, int d)
 	return era * 146097 + doe - 719468;
 }
 
+int nmea_time_plausible(int64_t unix_time)
+{
+	// a loose window is all this needs, so compare against the start of GPS_YEAR_MIN and the
+	// start of the year after GPS_YEAR_MAX rather than doing any calendar work here
+	return unix_time >= nmea_to_unix(GPS_YEAR_MIN, 1, 1, 0, 0, 0) &&
+	       unix_time < nmea_to_unix(GPS_YEAR_MAX + 1, 1, 1, 0, 0, 0);
+}
+
 int64_t nmea_to_unix(int year, int month, int day, int hour, int min, int sec)
 {
 	return days_from_civil(year, month, day) * 86400LL + hour * 3600LL + min * 60LL + sec;
@@ -316,8 +325,9 @@ static int parse_rmc(nmea_fix_t *fix, const char *sentence)
 		return NMEA_RESULT_INVALID;
 	}
 
-	// the date is valid even in a 'V' sentence on most modules, and it is what names the log file,
-	// so take it before looking at the status
+	// a 'V' sentence usually still carries a date, and it is worth having as a diagnostic: it is
+	// how "the receiver thinks it is 2080 and has no fix" becomes visible at all. it must not
+	// reach the wall clock or a file name, which is what time_from_fix below is for
 	if (parse_time(timebuf, &hour, &min, &sec) && parse_date(datebuf, &year, &month, &day)) {
 		fix->unix_time = nmea_to_unix(year, month, day, hour, min, sec);
 		fix->has_time = 1;
@@ -326,8 +336,13 @@ static int parse_rmc(nmea_fix_t *fix, const char *sentence)
 	if (status[0] != 'A') {
 		fix->has_fix = 0;
 		fix->has_speed = 0;
+		fix->time_from_fix = 0;
 		return NMEA_RESULT_RMC;
 	}
+
+	// before the coordinate check on purpose: an unparseable lat/lon does not make the timestamp
+	// any less a product of a real solution
+	fix->time_from_fix = fix->has_time;
 
 	if (!parse_degrees(lat, ns, &latitude) || !parse_degrees(lon, ew, &longitude)) {
 		fix->has_fix = 0;

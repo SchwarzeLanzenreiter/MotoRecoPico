@@ -34,6 +34,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "gps_cmd.h"
 #include "nmea.h"
 #include "power.h"
 #include "record.h"
@@ -162,6 +163,7 @@ static void test_rmc(void)
 	check(fix.has_speed, "RMC speed present");
 	check_close(fix.speed, 22.4 * 1852.0 / 3600.0, 1e-9, "knots converted to m/s");
 	check(fix.has_time, "RMC time present");
+	check(fix.time_from_fix, "a fixed RMC's date is backed by a fix");
 	// 2026-03-23 12:35:19 UTC
 	check(fix.unix_time == 1774269319LL, "RMC unix time");
 
@@ -171,6 +173,7 @@ static void test_rmc(void)
 	check(!fix.has_fix, "RMC status V is not a fix");
 	check(!fix.has_speed, "no speed without a fix");
 	check(fix.has_time, "void RMC still carries the date");
+	check(!fix.time_from_fix, "but a void RMC's date is not backed by a fix");
 
 	nmea_init(&fix);
 	check(nmea_parse(&fix, "$GPRMC,000000,A,3540.8724,N,13946.0261,E,000.0,000.0,010126,,,A*73")
@@ -179,10 +182,51 @@ static void test_rmc(void)
 	check_close(fix.speed, 0.0, 1e-12, "zero speed value");
 	check(fix.unix_time == 1767225600LL, "midnight new year unix time");
 
+	// the real failure this flag exists for: GGA does not carry a date, but has_time is sticky,
+	// so every GGA used to re-anchor the wall clock with the previous RMC's UTC against the
+	// current monotonic time. only an RMC may move the clock, and only a fixed one
+	printf("RMC/GGA clock ownership\n");
+	nmea_init(&fix);
+	check(nmea_parse(&fix, "$GPRMC,123519,A,3540.8724,N,13946.0261,E,022.4,084.4,230326,,,A*70")
+		== NMEA_RESULT_RMC, "fixed RMC first");
+	check(fix.time_from_fix, "clock may be set");
+
+	check(nmea_parse(&fix, "$GPGGA,123519,3540.8724,N,13946.0261,E,1,08,0.9,45.4,M,36.0,M,,*79")
+		== NMEA_RESULT_GGA, "then a GGA");
+	check(fix.time_from_fix, "a GGA neither grants nor revokes the clock");
+	check(fix.unix_time == 1774269319LL, "and a GGA does not move the timestamp");
+
+	check(nmea_parse(&fix, "$GPRMC,123519,V,,,,,,,230326,,,N*58") == NMEA_RESULT_RMC,
+		"then the fix is lost");
+	check(fix.has_time, "the date survives losing the fix");
+	check(!fix.time_from_fix, "but it may no longer set the clock");
+
 	printf("time conversion\n");
 	check(nmea_to_unix(1970, 1, 1, 0, 0, 0) == 0, "epoch");
 	check(nmea_to_unix(2000, 3, 1, 0, 0, 0) == 951868800LL, "leap year 2000");
 	check(nmea_to_unix(2024, 2, 29, 23, 59, 59) == 1709251199LL, "leap day 2024");
+}
+
+// the window that stops a receiver's cold start guess from naming a trip. the value in the
+// "2080" check is the one this module really emitted on the bike, not an invented one
+static void test_time_plausible(void)
+{
+	printf("time plausibility\n");
+
+	check(!nmea_time_plausible(nmea_to_unix(2080, 1, 6, 8, 59, 42)),
+		"the 2080 date the receiver reported during a cold search is rejected");
+	check(nmea_time_plausible(nmea_to_unix(2026, 10, 13, 11, 50, 21)),
+		"the real fix from the same run is accepted");
+	check(!nmea_time_plausible(0), "the epoch is not a plausible fix time");
+	check(!nmea_time_plausible(-1), "nor is anything before it");
+	check(nmea_time_plausible(nmea_to_unix(GPS_YEAR_MIN, 1, 1, 0, 0, 0)),
+		"the first instant of the window is inside it");
+	check(!nmea_time_plausible(nmea_to_unix(GPS_YEAR_MIN, 1, 1, 0, 0, 0) - 1),
+		"one second earlier is outside");
+	check(nmea_time_plausible(nmea_to_unix(GPS_YEAR_MAX, 12, 31, 23, 59, 59)),
+		"the last second of the window is inside it");
+	check(!nmea_time_plausible(nmea_to_unix(GPS_YEAR_MAX + 1, 1, 1, 0, 0, 0)),
+		"the year after the window is outside");
 }
 
 // GSA and GSV carry no position, only the diagnostics that explain a slow fix
@@ -366,6 +410,8 @@ static void test_settings(void)
 
 	settings_defaults(&s);
 	check(s.tz_offset_sec == DEFAULT_TZ_OFFSET_SEC, "default timezone");
+	check(s.gps_rate_ms == DEFAULT_GPS_RATE_MS, "default gps rate");
+	check(s.gps_baud == DEFAULT_GPS_BAUD, "default gps baud");
 
 	// the text written into a new file has to parse back into those same defaults, or a card
 	// created by the logger would not agree with the logger
@@ -377,6 +423,8 @@ static void test_settings(void)
 
 		settings_defaults(&from_file);
 		from_file.tz_offset_sec = 0;
+		from_file.gps_rate_ms = -1;
+		from_file.gps_baud = -1;
 
 		while (*p != '\0') {
 			const char *nl = strchr(p, '\n');
@@ -397,6 +445,10 @@ static void test_settings(void)
 
 		check(from_file.tz_offset_sec == DEFAULT_TZ_OFFSET_SEC,
 			"generated file round trips the timezone");
+		check(from_file.gps_rate_ms == DEFAULT_GPS_RATE_MS,
+			"generated file round trips the gps rate");
+		check(from_file.gps_baud == DEFAULT_GPS_BAUD,
+			"generated file round trips the gps baud");
 	}
 
 	// comments and blank lines
@@ -420,6 +472,41 @@ static void test_settings(void)
 	check(settings_parse_line(&s, "timezone 7") == SETTINGS_LINE_APPLIED,
 		"the equals sign is optional");
 	check(s.tz_offset_sec == 7 * 3600, "bare 7 means +7");
+
+	// the fix rate is in the settings file so that sweeping it does not need a rebuild
+	check(settings_parse_line(&s, "gps_rate = 100") == SETTINGS_LINE_APPLIED, "10Hz accepted");
+	check(s.gps_rate_ms == 100, "100ms stored");
+	check(settings_parse_line(&s, "gps_rate = 10000") == SETTINGS_LINE_APPLIED,
+		"the slowest the guide allows");
+	check(settings_parse_line(&s, "gps_rate = 0") == SETTINGS_LINE_APPLIED,
+		"0 is allowed: leave the receiver alone");
+	check(s.gps_rate_ms == 0, "0 stored");
+
+	// outside PMTK220's documented range
+	check(settings_parse_line(&s, "gps_rate = 99") == SETTINGS_LINE_BAD, "faster than 10Hz");
+	check(settings_parse_line(&s, "gps_rate = 10001") == SETTINGS_LINE_BAD, "slower than 10s");
+	check(s.gps_rate_ms == 0, "a rejected rate changes nothing");
+
+	// the baud is in the file for the same reason, and because it is the way back: a module left
+	// at 115200 is put back by writing 9600 here
+	check(settings_parse_line(&s, "gps_baud = 115200") == SETTINGS_LINE_APPLIED,
+		"115200 accepted");
+	check(s.gps_baud == 115200, "115200 stored");
+	check(settings_parse_line(&s, "gps_baud = 9600") == SETTINGS_LINE_APPLIED,
+		"9600 accepted, the way back");
+	check(s.gps_baud == 9600, "9600 stored");
+	check(settings_parse_line(&s, "gps_baud = 0") == SETTINGS_LINE_APPLIED,
+		"0 is allowed: leave the baud alone");
+	check(s.gps_baud == 0, "0 stored");
+
+	// a baud outside the guide's PMTK251 table can never be asked for, so it is a typo, not a
+	// setting. accepting it would make the probe settle back on 9600 every boot and the log
+	// would read as if the module were at fault
+	check(settings_parse_line(&s, "gps_baud = 115201") == SETTINGS_LINE_BAD,
+		"a baud the module cannot be asked for");
+	check(settings_parse_line(&s, "gps_baud = -9600") == SETTINGS_LINE_BAD, "a negative baud");
+	check(settings_parse_line(&s, "gps_baud = banana") == SETTINGS_LINE_BAD, "a non numeric baud");
+	check(s.gps_baud == 0, "a rejected baud changes nothing");
 
 	// 'vehicle' selected the engine rpm decode back when the trip was closed on the engine
 	// stopping. cards written by that firmware still carry the line, so it has to stay quiet
@@ -611,6 +698,133 @@ static void test_wallclock(void)
 	check(tm.day == 3 && tm.hour == 21 && tm.minute == 59, "previous day in UTC-8");
 }
 
+// ---------------------------------------------------------------------------
+// PMTK commands
+//
+// the expected strings are the examples printed in docs/MT33xx_GNSS_PMTK_Users_Guide, so these
+// check the checksum against the receiver vendor's own arithmetic rather than against ours
+// ---------------------------------------------------------------------------
+
+static void test_gps_cmd(void)
+{
+	char out[GPS_CMD_MAX];
+	int cmd, flag;
+
+	printf("PMTK commands\n");
+
+	check(gps_cmd_build(out, sizeof(out), "PMTK220,1000"), "built the 1Hz command");
+	check(strcmp(out, "$PMTK220,1000*1F\r\n") == 0, "PMTK220,1000 checksum matches the guide");
+
+	check(gps_cmd_build(out, sizeof(out), "PMTK400"), "built the query");
+	check(strcmp(out, "$PMTK400*36\r\n") == 0, "PMTK400 checksum matches the guide");
+
+	check(gps_cmd_build(out, sizeof(out), "PMTK251,38400"), "built the baud command");
+	check(strcmp(out, "$PMTK251,38400*27\r\n") == 0, "PMTK251 checksum matches the guide");
+
+	check(gps_cmd_build(out, sizeof(out), "PMTK314,-1"), "built the sentence reset");
+	check(strcmp(out, "$PMTK314,-1*04\r\n") == 0, "PMTK314,-1 checksum matches the guide");
+
+	// the set this firmware actually sends: GGA and RMC on every fix, everything else off
+	check(gps_cmd_build(out, sizeof(out), GPS_SENTENCES_MINIMAL), "built the minimal set");
+	check(strcmp(out,
+		"$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*34\r\n") == 0,
+		"minimal sentence set checksum");
+
+
+	// no room, no command. better than a truncated sentence on the wire
+	check(!gps_cmd_build(out, 8, "PMTK220,1000"), "refuses to truncate");
+
+	printf("PMTK acknowledgements\n");
+	check(gps_cmd_parse_ack("$PMTK001,314,3*36", &cmd, &flag), "ack recognised");
+	check(cmd == 314 && flag == 3, "ack carries the command and the flag");
+
+	check(gps_cmd_parse_ack("$PMTK001,220,2*36", &cmd, &flag), "refusal recognised");
+	check(cmd == 220 && flag == 2, "flag 2 is valid command, action failed");
+
+	check(!gps_cmd_parse_ack("$GPGGA,123519,,,,,0,00,,,M,,M,,*6B", &cmd, &flag),
+		"a GGA is not an ack");
+	check(!gps_cmd_parse_ack("$PMTK011,MTKGPS*08", &cmd, &flag), "a startup message is not an ack");
+	check(!gps_cmd_parse_ack("$PMTK001,314", &cmd, &flag), "a truncated ack is rejected");
+
+	// the other flags the guide defines. none of them is success, and the firmware has to tell
+	// them apart: flag 2 is worth retrying slower, flag 0 and 1 never will be
+	check(gps_cmd_parse_ack("$PMTK001,220,0*34", &cmd, &flag), "flag 0 recognised");
+	check(cmd == 220 && flag == 0, "flag 0 is an invalid command");
+	check(gps_cmd_parse_ack("$PMTK001,251,1*36", &cmd, &flag), "flag 1 recognised");
+	check(cmd == 251 && flag == 1, "flag 1 is an unsupported command");
+
+	// the guide prints a three field variant for some commands. the extra field must not upset
+	// the two the firmware reads
+	check(gps_cmd_parse_ack("$PMTK001,449,3,1*24", &cmd, &flag), "a three field ack parses");
+	check(cmd == 449 && flag == 3, "and still yields the command and the flag");
+
+	printf("PMTK500 fix control\n");
+	{
+		gps_fix_ctl_t ctl;
+
+		// the guide's own printed example
+		check(gps_cmd_parse_fix_ctl("$PMTK500,1000,0,0,0,0*1A", &ctl), "the guide's example parses");
+		check(ctl.fix_interval_ms == 1000, "fix interval read back");
+		check(ctl.duration_ms == 0 && ctl.run_interval_ms == 0, "duration and run interval");
+		check_close(ctl.hacc_m, 0.0, 1e-12, "horizontal accuracy mask");
+		check_close(ctl.vacc_m, 0.0, 1e-12, "vertical accuracy mask");
+
+		check(gps_cmd_parse_fix_ctl("$PMTK500,100,5000,10000,2.5,4.5*00", &ctl),
+			"a sleeping configuration parses");
+		check(ctl.fix_interval_ms == 100, "10Hz read back");
+		check(ctl.duration_ms == 5000 && ctl.run_interval_ms == 10000, "the sleep fields");
+		check_close(ctl.hacc_m, 2.5, 1e-12, "fractional hacc");
+		check_close(ctl.vacc_m, 4.5, 1e-12, "fractional vacc");
+
+		// nmea_parse validates the checksum before this ever sees a sentence, so this parser
+		// must not duplicate that work. pinning it in a test rather than only in a comment
+		check(gps_cmd_parse_fix_ctl("$PMTK500,200,0,0,0,0*XX", &ctl),
+			"the checksum is nmea_parse's job, not this parser's");
+		check(ctl.fix_interval_ms == 200, "and the fields still come out");
+
+		// a newer firmware may append fields
+		check(gps_cmd_parse_fix_ctl("$PMTK500,500,0,0,0,0,7,8*00", &ctl),
+			"extra trailing fields are tolerated");
+		check(ctl.fix_interval_ms == 500, "without disturbing the ones we read");
+
+		check(!gps_cmd_parse_fix_ctl("$PMTK500", &ctl), "the bare command is not a reply");
+		check(!gps_cmd_parse_fix_ctl("$PMTK500,1000,0,0*2A", &ctl), "too few fields rejected");
+		check(!gps_cmd_parse_fix_ctl("$PMTK500,1000,0,0,0*2A", &ctl), "four fields is still too few");
+		check(!gps_cmd_parse_fix_ctl("$PMTK500,abc,0,0,0,0*00", &ctl), "a non numeric interval");
+		check(!gps_cmd_parse_fix_ctl("$PMTK001,220,2*36", &ctl), "an ack is not a PMTK500");
+		check(!gps_cmd_parse_fix_ctl("$GPGGA,123519,,,,,0,00,,,M,,M,,*6B", &ctl),
+			"a GGA is not a PMTK500");
+
+		// outside the guide's range the number is not usable, and reporting "the module holds
+		// 0ms" would be worse than reporting nothing at all
+		check(!gps_cmd_parse_fix_ctl("$PMTK500,50,0,0,0,0*00", &ctl), "faster than the guide allows");
+		check(!gps_cmd_parse_fix_ctl("$PMTK500,10001,0,0,0,0*00", &ctl), "slower than it allows");
+		check(!gps_cmd_parse_fix_ctl("$PMTK500,0,0,0,0,0*00", &ctl), "zero rejected");
+	}
+
+	// the back off ladder. this is the only place the sweep's decisions are exercised at all:
+	// on the bike they only happen once per power up, and only when the receiver refuses
+	printf("PMTK220 back off ladder\n");
+	check(gps_cmd_next_fix_interval(100) == 125, "100ms refused -> try 125ms");
+	check(gps_cmd_next_fix_interval(125) == 200, "125 -> 200");
+	check(gps_cmd_next_fix_interval(200) == 250, "200 -> 250");
+	check(gps_cmd_next_fix_interval(250) == 500, "250 -> 500");
+	check(gps_cmd_next_fix_interval(500) == 1000, "500 -> 1000");
+	check(gps_cmd_next_fix_interval(1000) == 0, "1000ms is the last rung: the ladder ends");
+	check(gps_cmd_next_fix_interval(300) == 500, "a configured value off the ladder joins above it");
+	check(gps_cmd_next_fix_interval(99) == 100, "below the first rung climbs onto it");
+	check(gps_cmd_next_fix_interval(5000) == 0, "above the last rung there is nowhere to go");
+
+	printf("PMTK251 baud table\n");
+	check(gps_cmd_baud_allowed(0), "0 means leave the module alone");
+	check(gps_cmd_baud_allowed(9600), "9600, the module's default");
+	check(gps_cmd_baud_allowed(115200), "115200, what 10Hz needs");
+	check(gps_cmd_baud_allowed(921600), "the fastest the guide lists");
+	check(!gps_cmd_baud_allowed(9601), "a rate the module cannot be asked for");
+	check(!gps_cmd_baud_allowed(-1), "a negative rate");
+	check(!gps_cmd_baud_allowed(1000000), "a rate off the end of the table");
+}
+
 int motoreco_run_tests(void)
 {
 	g_failures = 0;
@@ -621,7 +835,9 @@ int motoreco_run_tests(void)
 	test_checksum();
 	test_gga();
 	test_rmc();
+	test_time_plausible();
 	test_diagnostics();
+	test_gps_cmd();
 	test_reader();
 	test_record();
 	test_power();

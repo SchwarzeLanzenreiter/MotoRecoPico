@@ -186,6 +186,109 @@ chkdsk を要する形で壊れる可能性がある（**トリップログは�
 - アイドル中は **LED 消灯**（`LED_IDLE`）。「カード異常＝高速点滅」と紛らわしくないように
 - アイドル中は 5秒ごとのカード再マウントも止める（せっかく閉じたログを開き直さないため）
 
+## GPS の受信周期（PMTK）
+
+受信機は MediaTek 系なので、**PMTK コマンドで測位周期・出力文・ボーレートを変えられる**
+（正典は [`docs/MT33xx_GNSS_PMTK_Users_Guide`](../docs/MT33xx_GNSS_PMTK_Users_Guide)）。
+これまで未使用だった TX 線（GP0 → モジュール RXD）を使い、**起動時に1回だけ**送る。
+`PMTK251` / `PMTK314` / `PMTK220` はいずれも `Keep status after reboot -> Yes` で
+モジュール側に残る。
+
+| コマンド | 用途 |
+|---|---|
+| `PMTK251` | NMEA のボーレート。**10Hz を入れるにはこれが先**。4800〜921600 |
+| `PMTK314` | 出力する NMEA 文とその頻度。**GGA と RMC のみ**に絞る（22フィールド）|
+| `PMTK220` | 測位間隔 [ms]。範囲 **100〜10000**（1000ms超は秒単位に丸められる）|
+| `PMTK400` | 現在の測位間隔の**問い合わせ**。`$PMTK500,...` で返ってくる |
+
+### 受信機は、できないことを拒否して返す
+
+ここが実機で分かった肝。**`gps_rate = 100`（10Hz）を 9600bps で送ったら拒否された**:
+
+```
+[+0.721s] gps: PMTK220 rejected, flag 2
+```
+
+ガイドの定義で `$PMTK001,<cmd>,2` の flag 2 は **"Valid command / packet, but action failed"** —
+コマンドは届いて解釈されたが、**実行はされなかった**。9600 8N1 の実効容量 960 B/s に対し、
+GGA+RMC（実測で1測位あたり約144バイト）を 10Hz で出すには約 1,530 B/s 必要なので、
+**出力しきれない周期をモジュール自身が蹴った**ということになる。
+実測も `2.0 sentences/s`（= 1Hz）のままで、周期は一度も変わっていなかった。
+
+> なお手元のガイドは、この「ボーレート不足で失敗する」機構を **PMTK251 の項にだけ**明記している
+> （*"If the baudrate is less than the max size of all NMEA sentences, it will return error with
+> command PMTK001,251,2"*）。測位間隔については MT3333 の NMEA 仕様書側に同じ記述がある。
+
+したがって**10Hz を取るにはボーレートを上げるしかない**。起動時の手順はこの順序でなければならない:
+
+1. **`PMTK251` でボーレートを上げる** — 先に周期を試すと、これから広げる線の天井を
+   見つけて居座ってしまう
+2. `PMTK314` で GGA+RMC に絞る
+3. `PMTK220` で測位間隔。**拒否されたら自動で次の候補に上げて再試行**する
+   （ラダー: 100 → 125 → 200 → 250 → 500 → 1000ms）
+4. **`PMTK400` で実効値を読み戻す** — ACK は証拠にしない
+
+ログはこう出る:
+
+```
+gps: module is at 9600 baud
+gps: raising the link from 9600 to 115200 baud
+gps: PMTK251 applied, the link is now 115200 baud
+gps: configuring for 100ms fixes (10.0Hz), GGA and RMC only
+gps: sentence set applied (GGA + RMC)
+gps: fix interval accepted (100ms, 10.0Hz)
+gps: module holds 100ms fixes (10.0Hz), as asked
+```
+
+入らなかった場合はこうなる（**どの周期で妥協したかが1行で分かる**）:
+
+```
+gps: PMTK251,115200 did not take, staying at 9600 baud
+gps: PMTK220,100 refused (flag 2), backing off to 125ms
+gps: PMTK220,125 refused (flag 2), backing off to 200ms
+gps: fix interval accepted (200ms, 5.0Hz)
+gps: module holds 200ms fixes (5.0Hz), as asked
+```
+
+**`module holds ...` と `as asked` が一致していなければ通っていない。** 読み戻しが
+`gps: module holds 1000ms fixes, we asked for 100ms. PMTK220 did not take` と言ったら、
+ACK が自分について嘘をついている。
+
+### ボーレートが不定である件（自動判別）
+
+`PMTK251` の設定は再起動では残るが、**フルコールドスタートと standby 移行で既定に戻る**。
+さらに前に使ったカードの設定が残っている可能性もある。つまり
+**電源投入時にモジュールが喋っているボーレートは本当に分からない**。
+
+なので**何も送る前に聞く**。9600 で `GPS_PROBE_MS`（1.5秒）聞いて、チェックサムの通る文が来なければ
+もう一方の候補に切り替えて聞き直す（最大4回）。これは飾りではなく本体で、
+片方を前提にする実装は一定割合の起動で GPS を殺す。
+
+```
+gps: nothing at 9600 baud, listening at 115200
+gps: module is at 115200 baud
+```
+
+設定を `gps_baud = 9600` に戻せば**元に戻せる**。判別は設定値に関わらず常に
+9600 と 115200 の両方を試すので、115200 に残ったモジュールもちゃんと見つけて戻せる。
+
+### 実測スループット
+
+推測で終わらせないため、**10秒ごとに実測値を出す**:
+
+```
+gps rate: 20.0 sentences/s 1540 B/s (13% of 115200 baud) avg 77 B/sentence bad:0 uart_lost:0 (want 100ms, module 100ms)
+```
+
+- 末尾の `(want Nms, module Nms)` が**自己検証**。ここが食い違っていたら周期は通っていない
+- `% of ... baud` が 100% を超えたら溢れている。`bad:`（チェックサム不一致）と
+  `uart_lost:`（UART リングの溢れ）も同時に増える
+- `avg B/sentence` が実測の1文長
+
+> **GSA / GSV を止めるため、status 行の衛星数・SNR・HDOP は 0 のまま**になる。
+> 周期を上げる代償として割り切った項目（`gps_rate = 0` に戻せば復活する）。
+
+
 ## 設定ファイル `MOTORECO.CFG`
 
 SDカードのルートに置く**隠しファイル**。無ければ起動時に既定値で自動生成する。
@@ -200,11 +303,32 @@ SDカードのルートに置く**隠しファイル**。無ければ起動時�
 # timezone: offset from UTC, used for the .dat file names and the debug log.
 #           whole hours (+8, -5) or with minutes (+5:30).
 timezone = +9
+#
+# gps_rate: position fix interval in ms, 100 to 10000 (100 = 10Hz, 1000 = 1Hz).
+#           the receiver refuses an interval it cannot output at the current
+#           baud, and the firmware then climbs to the next one it accepts, so
+#           this is the fastest rate to TRY. 0 leaves the receiver as it is.
+gps_rate = 100
+#
+# gps_baud: NMEA baud to raise the receiver to, which is what makes 10Hz fit.
+#           9600 carries about 6 fixes/s at most. one of 4800, 9600, 14400,
+#           19200, 38400, 57600, 115200, 230400, 460800, 921600, or 0 to leave
+#           it alone. the firmware finds the receiver at either baud on its own,
+#           so 9600 here is also the way back if a faster rate misbehaves.
+gps_baud = 115200
 ```
+
+> このブロックは `settings_default_file_text()`（[`src/settings.c`](src/settings.c)）が書く内容そのもの。
 
 | キー | 内容 | 既定 |
 |---|---|---|
 | `timezone` | UTC からのオフセット。`+9` / `-5` / `+5:30` / `+5.5` を受け付ける。`.dat` のファイル名とデバッグログの時刻に効く | `+9`（JST）|
+| `gps_rate` | 測位間隔 [ms]。100〜10000。拒否されたら自動で上げるので**試す最速値**。`0` で受信機に何も送らない | `100`（10Hz）|
+| `gps_baud` | NMEA のボーレート。ガイドの表の値のみ。`0` で変更しない。`9600` と書けば元に戻せる | `115200` |
+
+> **既存カードは書き足しが必要。** 旧ファームが書いた `MOTORECO.CFG` には `gps_rate = 1000` があり
+> `gps_baud` の行がない。そのカードは **1Hz / 9600 のまま**になるので、ファイルを消して
+> 再生成させるか、上の2行を手で書き足すこと。
 
 - `key = value` でも `key value` でも通る。キーは**大文字小文字を区別しない**
 - 読めない行は**その行だけ**無視してデバッグログに残す。ファイル全体を捨てたりはしない
@@ -273,6 +397,8 @@ gps searching after 30s: quality:0 mode:1D sats used:0 view:9 tracked:4 best snr
 | `view:0 tracked:0` のまま | 衛星が1個も見えない | アンテナ面が空を向いていない、金属ケース内、モジュール不良 |
 | `view:9 tracked:1 best snr:15` | 見えてはいるが信号が弱い | 遮蔽（ビル・屋内・タンク下）。SNR 30以上が数個ないと測位しない |
 | `view:9 tracked:5 snr:30+` で待ち | 正常な取得中 | あと数十秒待てば入る（下記のコールドスタート）|
+| `module holds` が `want` と食い違う | `gps rate: ... (want 100ms, module 1000ms)` | `PMTK220` が通っていない。ボーレートか文の数を見直す |
+| 測位前に変な日付 | `gps: the receiver reports 2080-01-06 ... with no fix` | 正常な動作。測位前の受信機の推測を**捨てている**行 |
 
 測位した瞬間と失った瞬間にも1行ずつ出る（`gps fixed after 42s: ...` / `gps fix lost after ...`）。
 最初の1文を受信した時点でも `gps talking: first sentence '$GNGGA' at 9600 baud` を出すので、
@@ -335,6 +461,12 @@ note: card detect (GP7) reads empty with a working card. ignoring it.
 27分の走行で 30MB。受信リング 4096 レコードはこのレートで **約 3.5 秒分**にあたり、
 SD カードの書き込みが数百 ms 詰まっても溢れない。
 
+GPS はこれに対して**桁が違う**。1Hz なら毎秒 2 レコード（位置 + 高度/速度）で 32 B/秒、
+10Hz でも毎秒 20 レコードの **320 B/秒**にすぎず、CAN の 18.5 KB/秒に対して 2% 以下。
+**周期を上げてもカードが律速になることはない。**
+ただし `.dat` 内の GPS 点は 10 倍になるので、ビューア側で約1Hz を前提にした処理
+（平滑化、速度の微分）があれば最初の高速ログで見ておく価値はある。
+
 ## 実機で最初に確認すること
 
 1. USB シリアルに `MotoRecoPico starting` → `logging to '...'` → `can controller ready` が出るか
@@ -347,6 +479,7 @@ SD カードの書き込みが数百 ms 詰まっても溢れない。
      32GB超のカードは工場出荷時 exFAT で、`FF_FS_EXFAT 0` のため弾かれる。FAT32 で再フォーマット
    - `note: card detect (GP7) reads empty with a working card` → 記録は動いている。
      パッド 9/10 のはんだと `SD_CD_INSERTED_LEVEL` の極性を後で確認すればよい
-4. GPS のボーレート（`GPS_UART_BAUD`、既定 9600）
+4. GPS は `gps: module is at ... baud` → `gps: module holds ...ms fixes ... as asked` まで出るか。
+   `module holds` が `want` と食い違っていたら周期が通っていない
 5. キーOFF で `trigger: ignition off (...)` が出て、ファイル名が終了時刻になっているか
 6. 記録した `.dat` を MotoRecoViewer で開き、Pi 版のログと同じように描けるか

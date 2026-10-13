@@ -26,8 +26,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-// the settings file on the card. one thing has to be changeable without a rebuild: the time zone
-// the log file names are written in.
+// the settings file on the card. what has to be changeable without a rebuild: the time zone the
+// log file names are written in, and the GPS fix rate and baud, because what the receiver will
+// actually accept is a matter of trying it on the bike rather than reasoning about it.
 //
 // the parsing here is deliberately free of any filesystem, so it can be tested on a PC.
 // settings_file.c is the FatFs half
@@ -38,6 +39,8 @@ extern "C" {
 
 typedef struct {
 	int	tz_offset_sec;	// seconds to add to UTC for local time
+	int	gps_rate_ms;	// position fix interval for PMTK220. 0 leaves the module untouched
+	int	gps_baud;		// NMEA baud to raise the module to with PMTK251. 0 leaves it alone
 } settings_t;
 
 enum {

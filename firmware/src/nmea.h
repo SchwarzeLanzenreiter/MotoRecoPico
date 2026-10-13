@@ -73,7 +73,11 @@ typedef struct {
 	int		has_speed;		// RMC carried a speed over ground
 	double	speed;			// metres per second, like gpsd's fix.speed
 
-	int		has_time;		// RMC carried a valid date and time
+	int		has_time;		// RMC carried a parseable date and time, fixed or not
+	int		time_from_fix;	// ...and that RMC was status 'A'. ONLY this one may set the wall
+							// clock or name a file. during a cold search this module emitted
+							// 2080-01-06 in a void RMC, and a trip named from that is named
+							// wrong for good, so has_time alone is a diagnostic and nothing more
 	int64_t	unix_time;		// seconds since the epoch, UTC
 
 	// everything below is diagnostics only. none of it reaches the .dat file, it exists to answer
@@ -114,6 +118,11 @@ int nmea_parse(nmea_fix_t *fix, const char *sentence);
 // helpers exposed for the host tests
 int nmea_checksum_ok(const char *sentence);
 int64_t nmea_to_unix(int year, int month, int day, int hour, int min, int sec);
+
+// is this timestamp one a working receiver could plausibly have produced? a receiver with a
+// garbage almanac is not a few seconds out, it is decades out, and the damage lands in a file
+// name that cannot be taken back. the window is GPS_YEAR_MIN..GPS_YEAR_MAX
+int nmea_time_plausible(int64_t unix_time);
 
 #ifdef __cplusplus
 }

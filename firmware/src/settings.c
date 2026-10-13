@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "gps_cmd.h"
 #include "settings.h"
 
 void settings_defaults(settings_t *s)
@@ -32,6 +33,8 @@ void settings_defaults(settings_t *s)
 	memset(s, 0, sizeof(*s));
 
 	s->tz_offset_sec = DEFAULT_TZ_OFFSET_SEC;
+	s->gps_rate_ms = DEFAULT_GPS_RATE_MS;
+	s->gps_baud = DEFAULT_GPS_BAUD;
 }
 
 static int lower(int c)
@@ -207,6 +210,32 @@ int settings_parse_line(settings_t *s, const char *line)
 		return SETTINGS_LINE_APPLIED;
 	}
 
+	if (equals_ci(key, "gps_rate")) {
+		long ms = strtol(value, NULL, 10);
+
+		// 0 is "send nothing", for comparing against whatever the module already had
+		if (ms != 0 && (ms < GPS_FIX_INTERVAL_MIN_MS || ms > GPS_FIX_INTERVAL_MAX_MS)) {
+			return SETTINGS_LINE_BAD;
+		}
+
+		s->gps_rate_ms = (int)ms;
+		return SETTINGS_LINE_APPLIED;
+	}
+
+	if (equals_ci(key, "gps_baud")) {
+		long baud = strtol(value, NULL, 10);
+
+		// only the rates the guide's PMTK251 table lists. a baud the module cannot be asked for
+		// is worse than useless here, because the probe would then settle back on 9600 every
+		// boot and the log would blame the module for a typo in the file
+		if (baud < 0 || baud > 1000000 || !gps_cmd_baud_allowed((int)baud)) {
+			return SETTINGS_LINE_BAD;
+		}
+
+		s->gps_baud = (int)baud;
+		return SETTINGS_LINE_APPLIED;
+	}
+
 	// obsolete: the trip used to be closed on the engine stopping, decoded from the tachometer
 	// frame, which meant the firmware had to know the model. the ignition line does that job
 	// now and says the same thing on every bike. cards written by an older firmware still
@@ -230,5 +259,18 @@ const char *settings_default_file_text(void)
 		"#\n"
 		"# timezone: offset from UTC, used for the .dat file names and the debug log.\n"
 		"#           whole hours (+8, -5) or with minutes (+5:30).\n"
-		"timezone = " DEFAULT_TZ_TEXT "\n";
+		"timezone = " DEFAULT_TZ_TEXT "\n"
+		"#\n"
+		"# gps_rate: position fix interval in ms, 100 to 10000 (100 = 10Hz, 1000 = 1Hz).\n"
+		"#           the receiver refuses an interval it cannot output at the current\n"
+		"#           baud, and the firmware then climbs to the next one it accepts, so\n"
+		"#           this is the fastest rate to TRY. 0 leaves the receiver as it is.\n"
+		"gps_rate = " DEFAULT_GPS_RATE_TEXT "\n"
+		"#\n"
+		"# gps_baud: NMEA baud to raise the receiver to, which is what makes 10Hz fit.\n"
+		"#           9600 carries about 6 fixes/s at most. one of 4800, 9600, 14400,\n"
+		"#           19200, 38400, 57600, 115200, 230400, 460800, 921600, or 0 to leave\n"
+		"#           it alone. the firmware finds the receiver at either baud on its own,\n"
+		"#           so 9600 here is also the way back if a faster rate misbehaves.\n"
+		"gps_baud = " DEFAULT_GPS_BAUD_TEXT "\n";
 }

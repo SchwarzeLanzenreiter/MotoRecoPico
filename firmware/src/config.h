@@ -132,6 +132,79 @@
 #define STATUS_INTERVAL_MS		30000	// periodic "still alive" line in the debug log.
 										// 30s so that even a short test ride leaves at least one
 
+// ---------------------------------------------------------------------------
+// GPS output configuration (PMTK, see docs/MT33xx_GNSS_PMTK_Users_Guide)
+//
+// the receiver is configured once per power up, over the TX line that has never been used until
+// now. both commands persist in the module ("Keep status after reboot -> Yes"), so this is also
+// how a previous experiment gets undone.
+//
+// the point of the exercise is the fix rate. the wire's capacity is not the limit directly, it
+// is the reason the receiver refuses: 9600 8N1 carries 960 bytes/s and one GGA plus one RMC
+// measured about 144 bytes, so 10Hz would need around 1,530 bytes/s. asked for 100ms at 9600
+// the module answered $PMTK001,220,2 -- "valid command, action failed" -- and went on emitting
+// 1Hz. so the order here is: raise the baud (PMTK251), trim the sentences (PMTK314), climb the
+// ladder below until an interval is accepted (PMTK220), then read back what the module really
+// holds (PMTK400). nothing is assumed from an ack: the rate report in main.c measures what
+// actually comes out of the receiver
+// ---------------------------------------------------------------------------
+
+// GGA and RMC only, every fix. the 22 fields are the sentence list in the order the guide gives:
+// GLL, RMC, VTG, GGA, GSA, GSV, GRS, GST, PLT, PLP, PLS, PLI, PLH, MALM, MEPH, MDGP, MDBG, ZDA,
+// MCHN, DTM, GBS, GPACCURACY. a field of 0 disables that sentence, 1 emits it on every fix, and
+// 2 to 5 emit it every n-th fix.
+//
+// GSA and GSV are off, which is what pays for the higher rate. the satellite count and SNR in
+// the status line go to zero with them: that diagnostic is the price of the bandwidth
+#define GPS_SENTENCES_MINIMAL	"PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
+
+// the module's own default set, for putting a module back the way it was
+#define GPS_SENTENCES_DEFAULT	"PMTK314,-1"
+
+#define GPS_FIX_INTERVAL_MIN_MS	100		// the guide's range for PMTK220
+#define GPS_FIX_INTERVAL_MAX_MS	10000
+#define DEFAULT_GPS_RATE_MS		100		// 10Hz, the whole point of raising the baud
+#define DEFAULT_GPS_RATE_TEXT	"100"	// must match DEFAULT_GPS_RATE_MS
+
+// PMTK220 back-off ladder. the module refuses an interval it cannot carry at the current baud
+// with flag 2, so the configured rate is only the first thing tried and the firmware climbs
+// until one is accepted. every rung is <= 1000ms deliberately: the guide rounds anything above
+// 1000 to a whole second, and a rounded value would make the PMTK400 read back disagree with
+// what was asked for, for no real reason. 1000 is last because it is the module's own default,
+// the one value known to work, so the sweep ends on a floor rather than a cliff
+#define GPS_RATE_LADDER			{ 100, 125, 200, 250, 500, 1000 }
+
+// PMTK251 raises the NMEA baud, which is what makes 10Hz possible at all. the guide's table is
+// 4800 to 921600, and 0 means leave the module's own rate alone.
+//
+// two things about it shape main.c. it needs the "Allow change of baudrate" option to have been
+// enabled when the module's firmware was built, so it may simply be refused. and it keeps status
+// across a reboot but reverts to default on a full cold start or a standby entry, so the baud
+// the module comes up at is genuinely unknown -- probing for it is the core of the sequence,
+// not a nicety. a build that assumed one baud would kill the GPS on some fraction of boots
+#define DEFAULT_GPS_BAUD		115200
+#define DEFAULT_GPS_BAUD_TEXT	"115200"
+#define GPS_PROBE_MS			1500	// long enough for even a 1Hz module to say something
+#define GPS_PROBE_MAX_SWITCHES	4		// 9600 and the configured rate, twice each
+#define GPS_BAUD_SETTLE_MS		100		// after PMTK251, before the pico's own uart follows
+
+// a date from a receiver whose almanac is still garbage is not merely late, it is decades out:
+// this module emitted 2080-01-06 during a cold search, and a trip named from it is named wrong
+// for good.
+//
+// the upper bound has to sit below that 2080 to be worth anything, which is why it is not simply
+// the 2099 that parse_date's "2000 + yy" can express. 2080-01-06 is exactly a century after the
+// GPS epoch day, the signature of an uninitialised week count, and a receiver that guesses at
+// all tends to guess near there. 2060 leaves this logger more years than its hardware will see
+#define GPS_YEAR_MIN			2025	// before this firmware existed
+#define GPS_YEAR_MAX			2060	// loose, but still well below the receiver's 2080 guess
+
+#define GPS_CFG_ACK_TIMEOUT_MS	1000	// per command, before it is sent again
+#define GPS_CFG_RETRIES			3
+
+// measured throughput report: sentences, bytes and how much of the UART's capacity that is
+#define GPS_RATE_REPORT_MS		10000
+
 // while there is no fix, report what the receiver can see this often. a cold start on this board
 // is the normal case (J3 has no backup supply pin, so the module forgets its almanac at every key
 // off) and can take tens of seconds, so the log has to show whether it is progressing or stuck

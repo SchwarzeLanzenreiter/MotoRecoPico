@@ -276,6 +276,12 @@ bool logger_sync(void)
 	return f_sync(&g_file) == FR_OK;
 }
 
+// called once per trip: g_temp_name is cleared by the rename, so there is deliberately no way
+// to rename a second time. that was considered, because a trip used to be nameable from a
+// pre-fix clock and could end up named 20800106_085940.dat, but the fix belongs upstream: only
+// a fixed RMC with a plausible year sets the clock now (see handle_gps_sentence), so a bad name
+// is no longer reachable. renaming mid ride would mean closing and reopening the trip file a
+// second time, which is another chance to lose the handle for a cosmetic gain
 bool logger_name_from_clock(void)
 {
 	if (!g_open || !g_temp_name || !wallclock_valid()) {

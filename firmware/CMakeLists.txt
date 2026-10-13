@@ -45,6 +45,7 @@ add_executable(motorecopico
     src/sd_spi.c
     src/diskio.c
     src/nmea.c
+    src/gps_cmd.c
     src/record.c
     src/power.c
     src/settings.c
@@ -103,6 +104,7 @@ add_executable(motorecopico_tests
     test/test_pico_main.c
     test/test_nmea.c
     src/nmea.c
+    src/gps_cmd.c
     src/record.c
     src/power.c
     src/settings.c

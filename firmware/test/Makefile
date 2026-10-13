@@ -10,7 +10,7 @@ BUILD   := build
 
 # the modules with no hardware in them. keep in step with the motorecopico_tests target
 # in ../CMakeLists.txt
-TEST_SRC := test_nmea.c ../src/nmea.c ../src/record.c ../src/power.c ../src/settings.c \
+TEST_SRC := test_nmea.c ../src/nmea.c ../src/gps_cmd.c ../src/record.c ../src/power.c ../src/settings.c \
             ../src/wallclock.c
 
 .PHONY: all test clean

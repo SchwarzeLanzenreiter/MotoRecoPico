@@ -38,6 +38,7 @@
 #include "pico/stdlib.h"
 
 #include "config.h"
+#include "gps_cmd.h"
 #include "led.h"
 #include "logger.h"
 #include "mcp25625.h"
@@ -59,11 +60,15 @@ static volatile uint32_t g_gps_head;
 static volatile uint32_t g_gps_tail;
 static volatile uint32_t g_gps_drops;
 
+static volatile uint32_t g_gps_bytes;	// raw bytes off the wire, for the throughput report
+
 static void on_uart_rx(void)
 {
 	while (uart_is_readable(uart0)) {
 		uint8_t c = (uint8_t)uart_getc(uart0);
 		uint32_t next = (g_gps_head + 1) % GPS_RING_BYTES;
+
+		g_gps_bytes++;
 
 		if (next == g_gps_tail) {
 			g_gps_drops++;
@@ -141,6 +146,50 @@ static bool g_gps_seen_any;
 static bool g_flg_gps_silent;
 static uint64_t g_gps_search_start_us;	// when the current search began
 
+// configuring the receiver, in the order it has to happen (see config.h for the why).
+//
+// the receiver refuses what it cannot do rather than failing quietly: asked for 100ms fixes at
+// 9600 baud it answered $PMTK001,220,2, "valid command, action failed", and kept emitting 1Hz.
+// so the baud goes up first, then the sentence set comes down, then the fix interval climbs a
+// ladder until one is accepted -- and none of that is believed until PMTK400 reads back the
+// interval the module actually holds
+typedef enum {
+	GPS_CFG_PROBE = 0,	// listening to work out which baud the module came up at
+	GPS_CFG_BAUD,		// PMTK251 sent, waiting to hear NMEA at the new rate
+	GPS_CFG_SENTENCES,	// PMTK314 sent, waiting for the ack
+	GPS_CFG_RATE,		// PMTK220 sent, waiting for the ack. may climb the ladder
+	GPS_CFG_VERIFY,		// PMTK400 sent, waiting for the PMTK500 that answers it
+	GPS_CFG_DONE
+} gps_cfg_step_t;
+
+static gps_cfg_step_t g_gps_cfg_step;
+static uint64_t g_gps_cfg_sent_us;
+static int g_gps_cfg_tries;			// silence resends of the current attempt only. a refusal
+									// starts a fresh attempt and must not consume these
+
+static int g_gps_baud = GPS_UART_BAUD;	// what the pico's own uart is set to right now
+static int g_gps_baud_prev;				// to fall back to when PMTK251 does not take
+static int g_gps_probe_switches;
+static bool g_gps_baud_switched;		// the pico has followed the module to the new rate
+
+static int g_gps_rate_try_ms;			// the interval currently being attempted
+static int g_gps_rate_accepted_ms;		// 0 until the receiver answers one with flag 3
+static int g_gps_rate_effective_ms;		// what PMTK500 says the module really holds
+
+// throughput over the last window. this is the measurement the fix rate experiment turns on:
+// 9600 8N1 carries 960 bytes/s and nothing the receiver is told can change that
+static uint64_t g_rate_window_us;
+static uint32_t g_rate_bytes0;
+static uint32_t g_rate_sentences0;
+static uint32_t g_rate_bad0;
+static uint32_t g_rate_drops0;
+
+// GGA carries the altitude and RMC the speed, so at the very first fix exactly one half of a
+// position has arrived and the other is legitimately missing for one sentence
+static bool g_seen_fixed_gga;
+static bool g_seen_fixed_rmc;
+static bool g_flg_badtime;	// the receiver offered a date it cannot possibly have known
+
 static void reset_log_state(void)
 {
 	// the pi cleared these on every key on, so each trip's file is self contained. a restart at
@@ -150,6 +199,9 @@ static void reset_log_state(void)
 	g_lat_prev = 0;
 	g_flg_noalt = false;
 	g_flg_nonstd = false;
+	g_flg_badtime = false;
+	g_seen_fixed_gga = false;
+	g_seen_fixed_rmc = false;
 
 	// g_flg_nofix is deliberately not touched here. it tracks whether the receiver currently has
 	// a fix, not whether something was reported, so opening a new file must not disturb it
@@ -269,6 +321,443 @@ static void log_gps_state(const char *what, uint64_t now_us)
 		(unsigned int)g_gps_sentences, (unsigned int)g_gps_bad);
 }
 
+// puts one PMTK command on the wire. a 60 byte command at 9600 baud occupies the UART for about
+// 60ms, which is why this only ever runs during start up
+static void gps_send(const char *body)
+{
+	char cmd[GPS_CMD_MAX];
+
+	if (!gps_cmd_build(cmd, sizeof(cmd), body)) {
+		logger_debug("gps command too long to send: %s", body);
+		return;
+	}
+
+	uart_write_blocking(uart0, (const uint8_t *)cmd, strlen(cmd));
+
+	// wait for the last bit to actually leave. PMTK251 is the reason: the module changes its
+	// own rate the moment it has received the command, so anything still sitting in the FIFO
+	// would go out at a rate nobody is listening at
+	uart_tx_wait_blocking(uart0);
+}
+
+// moves the pico's side of the link. the receive ring and the sentence reader have to be thrown
+// away with it: bytes captured at the old rate are framing noise at the new one, and a half
+// finished sentence would otherwise be completed with bytes from the other rate
+static void gps_set_baud(int baud)
+{
+	irq_set_enabled(UART0_IRQ, false);
+
+	uart_set_baudrate(uart0, (uint)baud);
+	g_gps_tail = g_gps_head;
+	nmea_reader_init(&g_reader);
+
+	irq_set_enabled(UART0_IRQ, true);
+
+	g_gps_baud = baud;
+}
+
+// the rate to listen at when the current one is silent. deliberately not taken from the settings
+// alone, because the two cases that would break are the two that matter most: gps_baud = 0 means
+// "leave the module alone", and a module an earlier card moved to 115200 still has to be found
+// before it can be left alone. gps_baud = 9600 means "put it back", which likewise starts by
+// finding it where it actually is
+static int gps_other_baud(void)
+{
+	int fast = (g_settings.gps_baud != 0 && g_settings.gps_baud != GPS_UART_BAUD)
+		? g_settings.gps_baud : DEFAULT_GPS_BAUD;
+
+	if (fast == GPS_UART_BAUD) {
+		return GPS_UART_BAUD;	// nothing to alternate with
+	}
+
+	return (g_gps_baud == GPS_UART_BAUD) ? fast : GPS_UART_BAUD;
+}
+
+static const char *gps_cfg_command_name(gps_cfg_step_t step)
+{
+	switch (step) {
+	case GPS_CFG_BAUD:		return "PMTK251";
+	case GPS_CFG_SENTENCES:	return "PMTK314";
+	case GPS_CFG_RATE:		return "PMTK220";
+	case GPS_CFG_VERIFY:	return "PMTK400";
+	default:				return "nothing";
+	}
+}
+
+// drives the configuration forward. called when the module is first heard, when an answer
+// arrives, and from the main loop for the timeouts
+static void gps_cfg_advance(gps_cfg_step_t step, uint64_t now_us)
+{
+	char body[GPS_CMD_MAX];
+
+	g_gps_cfg_step = step;
+	g_gps_cfg_sent_us = now_us;
+	g_gps_cfg_tries++;
+
+	switch (step) {
+	case GPS_CFG_BAUD:
+		g_gps_baud_switched = false;
+		snprintf(body, sizeof(body), "PMTK251,%d", g_settings.gps_baud);
+		gps_send(body);
+		break;
+
+	case GPS_CFG_SENTENCES:
+		gps_send(GPS_SENTENCES_MINIMAL);
+		break;
+
+	case GPS_CFG_RATE:
+		snprintf(body, sizeof(body), "PMTK220,%d", g_gps_rate_try_ms);
+		gps_send(body);
+		break;
+
+	case GPS_CFG_VERIFY:
+		gps_send("PMTK400");
+		break;
+
+	default:
+		break;
+	}
+}
+
+// everything after the baud is settled: trim the sentences, then climb to a fix interval
+static void gps_cfg_after_baud(uint64_t now_us)
+{
+	g_gps_cfg_tries = 0;
+
+	// a rate of 0 means "leave the receiver alone", for comparing against its own defaults. the
+	// read back still runs: this is precisely the mode in which nobody knows what it holds
+	if (g_settings.gps_rate_ms == 0) {
+		logger_debug("gps: gps_rate is 0, leaving the receiver's own output alone");
+		gps_cfg_advance(GPS_CFG_VERIFY, now_us);
+		return;
+	}
+
+	logger_debug("gps: configuring for %dms fixes (%.1fHz), GGA and RMC only",
+		g_settings.gps_rate_ms, (double)1000.0 / (double)g_settings.gps_rate_ms);
+
+	g_gps_rate_try_ms = g_settings.gps_rate_ms;
+	gps_cfg_advance(GPS_CFG_SENTENCES, now_us);
+}
+
+// the module is talking and we know at what rate. raise it first if asked: running the fix
+// interval ladder first would find the ceiling of a line we are about to widen and settle there
+static void gps_cfg_begin(uint64_t now_us)
+{
+	if (g_settings.gps_baud != 0 && g_settings.gps_baud != g_gps_baud) {
+		logger_debug("gps: raising the link from %d to %d baud", g_gps_baud,
+			g_settings.gps_baud);
+		g_gps_baud_prev = g_gps_baud;
+		g_gps_cfg_tries = 0;
+		gps_cfg_advance(GPS_CFG_BAUD, now_us);
+		return;
+	}
+
+	gps_cfg_after_baud(now_us);
+}
+
+// PMTK251 did not take: either the module was built without "allow change of baudrate", or it
+// never received the command. carry on at the rate it is actually speaking
+static void gps_cfg_baud_give_up(uint64_t now_us)
+{
+	if (g_gps_baud != g_gps_baud_prev) {
+		gps_set_baud(g_gps_baud_prev);
+	}
+
+	logger_debug("gps: PMTK251,%d did not take, staying at %d baud", g_settings.gps_baud,
+		g_gps_baud);
+	gps_cfg_after_baud(now_us);
+}
+
+static void gps_cfg_on_sentences_ack(int flag, uint64_t now_us)
+{
+	if (flag == GPS_ACK_OK) {
+		logger_debug("gps: sentence set applied (GGA + RMC)");
+	} else {
+		// there is no ladder for a sentence set, and putting the module's default set back
+		// (PMTK314,-1) would turn GLL/VTG/GSA/GSV on and make the bandwidth strictly worse. a
+		// fatter set only means the rate ladder settles on a slower rung, and PMTK400 will say so
+		logger_debug("gps: PMTK314 refused (flag %d). the receiver keeps its own sentence set, "
+			"so GSA/GSV stay on and the rate ladder will settle slower", flag);
+	}
+
+	g_gps_cfg_tries = 0;
+	gps_cfg_advance(GPS_CFG_RATE, now_us);
+}
+
+static void gps_cfg_on_rate_ack(int flag, uint64_t now_us)
+{
+	int next;
+
+	if (flag == GPS_ACK_OK) {
+		g_gps_rate_accepted_ms = g_gps_rate_try_ms;
+		logger_debug("gps: fix interval accepted (%dms, %.1fHz)", g_gps_rate_try_ms,
+			(double)1000.0 / (double)g_gps_rate_try_ms);
+		g_gps_cfg_tries = 0;
+		gps_cfg_advance(GPS_CFG_VERIFY, now_us);
+		return;
+	}
+
+	// flag 0 is "invalid command" and flag 1 is "unsupported". neither becomes supported at a
+	// slower rate, so there is nothing to sweep. only flag 2, "action failed", is the receiver
+	// saying it could not do this particular interval
+	if (flag != 2) {
+		logger_debug("gps: PMTK220 unsupported (flag %d). not sweeping", flag);
+		g_gps_cfg_tries = 0;
+		gps_cfg_advance(GPS_CFG_VERIFY, now_us);
+		return;
+	}
+
+	next = gps_cmd_next_fix_interval(g_gps_rate_try_ms);
+
+	if (next == 0) {
+		logger_debug("gps: every interval from %dms to the end of the ladder was refused. "
+			"the receiver keeps its own rate", g_settings.gps_rate_ms);
+		g_gps_cfg_tries = 0;
+		gps_cfg_advance(GPS_CFG_VERIFY, now_us);
+		return;
+	}
+
+	logger_debug("gps: PMTK220,%d refused (flag 2), backing off to %dms", g_gps_rate_try_ms,
+		next);
+
+	g_gps_rate_try_ms = next;
+	g_gps_cfg_tries = 0;	// a refusal is a new attempt, not a resend of the old one
+	gps_cfg_advance(GPS_CFG_RATE, now_us);
+}
+
+// the only honest account of the fix interval: what the module says it holds, not what it
+// acknowledged. the whole point of the read back
+static void gps_cfg_on_fix_ctl(const gps_fix_ctl_t *ctl)
+{
+	int asked = g_gps_rate_accepted_ms ? g_gps_rate_accepted_ms : g_settings.gps_rate_ms;
+
+	g_gps_rate_effective_ms = ctl->fix_interval_ms;
+
+	if (g_settings.gps_rate_ms == 0) {
+		logger_debug("gps: module holds %dms fixes (%.1fHz), we sent nothing",
+			ctl->fix_interval_ms, (double)1000.0 / (double)ctl->fix_interval_ms);
+	} else if (ctl->fix_interval_ms == asked) {
+		logger_debug("gps: module holds %dms fixes (%.1fHz), as asked", ctl->fix_interval_ms,
+			(double)1000.0 / (double)ctl->fix_interval_ms);
+	} else {
+		logger_debug("gps: module holds %dms fixes, we asked for %dms. PMTK220 did not take",
+			ctl->fix_interval_ms, asked);
+	}
+
+	// a non-zero duration or run interval means the module sleeps between fixes, and then the
+	// fix interval does not mean what it looks like
+	if (ctl->duration_ms != 0 || ctl->run_interval_ms != 0) {
+		logger_debug("gps: PMTK500 duration:%d run:%d", ctl->duration_ms, ctl->run_interval_ms);
+	}
+
+	g_gps_cfg_step = GPS_CFG_DONE;
+}
+
+// consumes anything that is an answer to one of our own commands: PMTK001 and PMTK500. returns
+// true when the sentence was ours, so it never reaches the navigation handling.
+//
+// the flag is read by the step that was waiting for it, never by a shared dispatcher. that is
+// the bug this replaces: a refusal used to fall through into "applied"
+static bool gps_cfg_consume(const char *sentence, uint64_t now_us)
+{
+	gps_fix_ctl_t ctl;
+	int cmd, flag;
+
+	if (gps_cmd_parse_fix_ctl(sentence, &ctl)) {
+		if (g_gps_cfg_step == GPS_CFG_VERIFY) {
+			gps_cfg_on_fix_ctl(&ctl);
+		}
+
+		return true;
+	}
+
+	if (!gps_cmd_parse_ack(sentence, &cmd, &flag)) {
+		return false;
+	}
+
+	if (g_gps_cfg_step == GPS_CFG_BAUD && cmd == 251) {
+		// the ack is not what proves this one worked: the module switches rate the moment it has
+		// the command, so its own acknowledgement can arrive garbled or not at all. hearing NMEA
+		// at the new rate is the proof. a clean refusal, though, is worth acting on at once
+		if (flag != GPS_ACK_OK) {
+			logger_debug("gps: PMTK251 refused (flag %d). the module was built without "
+				"\"allow change of baudrate\"", flag);
+			gps_cfg_baud_give_up(now_us);
+		}
+
+		return true;
+	}
+
+	if (g_gps_cfg_step == GPS_CFG_SENTENCES && cmd == 314) {
+		gps_cfg_on_sentences_ack(flag, now_us);
+		return true;
+	}
+
+	if (g_gps_cfg_step == GPS_CFG_RATE && cmd == 220) {
+		gps_cfg_on_rate_ack(flag, now_us);
+		return true;
+	}
+
+	// PMTK400 is answered twice: an ack for the query, then the PMTK500 carrying the answer. the
+	// PMTK500 is the completion event, so a successful ack here is just noise
+	if (g_gps_cfg_step == GPS_CFG_VERIFY && cmd == 400) {
+		if (flag != GPS_ACK_OK) {
+			logger_debug("gps: PMTK400 refused (flag %d). the effective fix interval stays "
+				"unverified", flag);
+			g_gps_cfg_step = GPS_CFG_DONE;
+		}
+
+		return true;
+	}
+
+	// an answer to something we are not waiting on: a late duplicate after a resend, or the
+	// module's own start up chatter. worth a line, but it must not drive the machine
+	logger_debug("gps: stray PMTK%03d answer, flag %d", cmd, flag);
+
+	return true;
+}
+
+// the module's baud at power up is genuinely unknown: PMTK251 persists across a reboot but
+// reverts on a full cold start or a standby entry, and an earlier card may have moved it. so
+// listen before saying anything, and alternate between the two candidates until something
+// intelligible arrives
+static void gps_probe_tick(uint64_t now_us)
+{
+	int other;
+
+	if (now_us - g_gps_cfg_sent_us < (uint64_t)GPS_PROBE_MS * 1000ULL) {
+		return;
+	}
+
+	other = gps_other_baud();
+
+	if (other == g_gps_baud || g_gps_probe_switches >= GPS_PROBE_MAX_SWITCHES) {
+		// either there is only one rate worth trying, or both have been tried twice. the
+		// commands below are harmless with nobody listening, and the silence warning in the
+		// main loop is what will keep saying so
+		logger_debug("gps: nothing intelligible at %d baud%s. carrying on anyway, check the "
+			"GPS wiring and J3 power", g_gps_baud,
+			(other == g_gps_baud) ? "" : " or the other candidate");
+
+		if (g_gps_baud != GPS_UART_BAUD) {
+			gps_set_baud(GPS_UART_BAUD);
+		}
+
+		gps_cfg_begin(now_us);
+		return;
+	}
+
+	g_gps_probe_switches++;
+	logger_debug("gps: nothing at %d baud, listening at %d", g_gps_baud, other);
+	gps_set_baud(other);
+	g_gps_cfg_sent_us = now_us;
+}
+
+static void gps_baud_tick(uint64_t now_us)
+{
+	if (!g_gps_baud_switched) {
+		// the module needs a moment to act on the command before our side moves
+		if (now_us - g_gps_cfg_sent_us < (uint64_t)GPS_BAUD_SETTLE_MS * 1000ULL) {
+			return;
+		}
+
+		gps_set_baud(g_settings.gps_baud);
+		g_gps_baud_switched = true;
+		g_gps_cfg_sent_us = now_us;
+		return;
+	}
+
+	// listening at the new rate. a sentence arriving here is handled in handle_gps_sentence,
+	// which is what ends this step
+	if (now_us - g_gps_cfg_sent_us < (uint64_t)GPS_PROBE_MS * 1000ULL) {
+		return;
+	}
+
+	gps_cfg_baud_give_up(now_us);
+}
+
+// resends the current command if the module never answered
+static void gps_cfg_tick(uint64_t now_us)
+{
+	switch (g_gps_cfg_step) {
+	case GPS_CFG_PROBE:
+		gps_probe_tick(now_us);
+		return;
+
+	case GPS_CFG_BAUD:
+		gps_baud_tick(now_us);
+		return;
+
+	case GPS_CFG_SENTENCES:
+	case GPS_CFG_RATE:
+	case GPS_CFG_VERIFY:
+		break;
+
+	default:
+		return;
+	}
+
+	if (now_us - g_gps_cfg_sent_us < (uint64_t)GPS_CFG_ACK_TIMEOUT_MS * 1000ULL) {
+		return;
+	}
+
+	if (g_gps_cfg_tries < GPS_CFG_RETRIES) {
+		gps_cfg_advance(g_gps_cfg_step, now_us);
+		return;
+	}
+
+	logger_debug("gps: no ack for %s after %d tries", gps_cfg_command_name(g_gps_cfg_step),
+		g_gps_cfg_tries);
+
+	// a silent PMTK220 is still worth a read back. if PMTK400 answers, the TX line is fine and
+	// the command was simply ignored; if it does not, the line to the module is dead
+	if (g_gps_cfg_step == GPS_CFG_VERIFY) {
+		logger_debug("gps: PMTK400 never answered, the effective fix interval is unverified");
+		g_gps_cfg_step = GPS_CFG_DONE;
+		return;
+	}
+
+	g_gps_cfg_tries = 0;
+	gps_cfg_advance(GPS_CFG_VERIFY, now_us);
+}
+
+// what actually came off the wire in the last window, against what the UART can carry.
+// this is the number the fix rate experiment is about
+static void gps_rate_report(uint64_t now_us)
+{
+	uint32_t bytes = g_gps_bytes - g_rate_bytes0;
+	uint32_t sentences = g_gps_sentences - g_rate_sentences0;
+	uint32_t bad = g_gps_bad - g_rate_bad0;
+	uint32_t drops = g_gps_drops - g_rate_drops0;
+	uint32_t secs = (uint32_t)((now_us - g_rate_window_us) / 1000000ULL);
+	uint32_t capacity;
+
+	if (secs == 0) {
+		return;
+	}
+
+	// 8N1 is 10 bits on the wire per byte
+	capacity = (uint32_t)g_gps_baud / 10;
+
+	// the trailing pair is what makes this line self checking: if the module is not holding the
+	// interval we asked for, the two numbers disagree and the whole experiment is answered here
+	logger_debug("gps rate: %u.%u sentences/s %u B/s (%u%% of %d baud) avg %u B/sentence "
+		"bad:%u uart_lost:%u (want %dms, module %dms)",
+		(unsigned int)(sentences * 10 / secs / 10), (unsigned int)(sentences * 10 / secs % 10),
+		(unsigned int)(bytes / secs), (unsigned int)(bytes / secs * 100 / capacity),
+		g_gps_baud,
+		(unsigned int)(sentences ? bytes / sentences : 0),
+		(unsigned int)bad, (unsigned int)drops,
+		g_gps_rate_accepted_ms ? g_gps_rate_accepted_ms : g_settings.gps_rate_ms,
+		g_gps_rate_effective_ms);
+
+	g_rate_window_us = now_us;
+	g_rate_bytes0 = g_gps_bytes;
+	g_rate_sentences0 = g_gps_sentences;
+	g_rate_bad0 = g_gps_bad;
+	g_rate_drops0 = g_gps_drops;
+}
+
 static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 {
 	struct CANData rec;
@@ -290,7 +779,7 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 	// the first sentence proves the wiring and the baud rate. worth its own line, because
 	// everything that comes after assumes both
 	if (!g_gps_seen_any) {
-		char head[8];
+		char head[16];
 		size_t i;
 
 		g_gps_seen_any = true;
@@ -300,18 +789,58 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 		}
 
 		head[i] = '\0';
-		logger_debug("gps talking: first sentence '%s' at %d baud", head, GPS_UART_BAUD);
+		logger_debug("gps talking: first sentence '%s' at %d baud", head, g_gps_baud);
+	}
+
+	// a well formed sentence at the current rate is the only proof either listening step gets.
+	// both stop here rather than falling through to gps_cfg_consume: this sentence arrived
+	// before the command that the step below goes on to send, so it cannot be its answer, and a
+	// stale ack left in the module's output buffer across a pico reset would otherwise be
+	// credited to a PMTK314 sent microseconds ago. one sentence's worth of navigation data is
+	// given up for that, once per power up, before there is any fix to lose
+	if (g_gps_cfg_step == GPS_CFG_PROBE) {
+		logger_debug("gps: module is at %d baud", g_gps_baud);
+		gps_cfg_begin(now_us);
+		return true;
+	}
+
+	// only once our side has followed. while the settle window is still running the module is
+	// legitimately still on the old rate, and what arrives may be the PMTK251 ack itself
+	if (g_gps_cfg_step == GPS_CFG_BAUD && g_gps_baud_switched) {
+		logger_debug("gps: PMTK251 applied, the link is now %d baud", g_gps_baud);
+		gps_cfg_after_baud(now_us);
+		return true;
+	}
+
+	// PMTK001 and PMTK500 are answers to our own commands, not navigation data. this has to come
+	// before the NMEA_RESULT_IGNORED return below, because a PMTK500 parses as ignored
+	if (gps_cfg_consume(sentence, now_us)) {
+		return true;
 	}
 
 	if (result == NMEA_RESULT_IGNORED) {
 		return true;
 	}
 
-	// the receiver is the only clock on the board. re-anchor on every sentence that carries a
-	// date, which also corrects the drift of the pico's own oscillator over a long ride
-	if (g_fix.has_time) {
+	if (result == NMEA_RESULT_GGA && g_fix.has_fix) {
+		g_seen_fixed_gga = true;
+	} else if (result == NMEA_RESULT_RMC && g_fix.has_fix) {
+		g_seen_fixed_rmc = true;
+	}
+
+	// the receiver is the only clock on the board, and only a fixed RMC may set it. three
+	// separate reasons, each of which cost a real trip:
+	//   - RMC only, because g_fix.has_time is sticky. a GGA reaching this block re-anchored the
+	//     previous RMC's UTC against the current monotonic time, so the debug log's timestamps
+	//     walked backwards inside every fix interval
+	//   - time_from_fix, because a void RMC's date is whatever the module is guessing
+	//   - the year window, because a bad date names a .dat file wrong and nothing takes it back
+	if (result == NMEA_RESULT_RMC && g_fix.time_from_fix &&
+	    nmea_time_plausible(g_fix.unix_time)) {
 		bool was_valid = wallclock_valid();
 
+		// re-anchoring on every fixed RMC also corrects the drift of the pico's own oscillator
+		// over a long ride
 		wallclock_set(g_fix.unix_time, now_us);
 
 		if (!was_valid) {
@@ -322,6 +851,19 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 		if (logger_has_temp_name() && logger_name_from_clock()) {
 			logger_debug("log renamed to '%s'", logger_filename());
 		}
+	} else if (result == NMEA_RESULT_RMC && g_fix.has_time && !g_fix.time_from_fix &&
+	           !g_flg_badtime) {
+		// the line whose absence made a 2080 file name a mystery. spelled out as a date rather
+		// than an epoch count, because reading "2080" is the entire point of it
+		wallclock_tm_t bad;
+
+		wallclock_break_down(g_fix.unix_time, &bad);
+		g_flg_badtime = true;
+
+		logger_debug("gps: the receiver reports %04d-%02d-%02d %02d:%02d:%02d with no fix%s. "
+			"ignoring it for the clock", bad.year, bad.month, bad.day, bad.hour, bad.minute,
+			bad.second,
+			nmea_time_plausible(g_fix.unix_time) ? "" : ", and that is not a plausible date");
 	}
 
 	if (!g_fix.has_fix) {
@@ -361,11 +903,18 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 	}
 
 	// altitude and speed are missing while the fix is 2D only. the pi saw those as NaN from gpsd
-	// and skipped this frame rather than logging garbage
+	// and skipped this frame rather than logging garbage.
+	//
+	// the skip itself is unconditional: suppressing the message must never turn into writing a
+	// record with half a fix in it, because that would change what is in the .dat file. only the
+	// message waits for a full GGA+RMC pair, because at the very first fix exactly one half has
+	// arrived and the other is legitimately missing for one sentence -- which read like a
+	// receiver fault in the log when it was nothing of the kind
 	if (!g_fix.has_altitude || !g_fix.has_speed) {
-		if (!g_flg_noalt) {
+		if (!g_flg_noalt && g_seen_fixed_gga && g_seen_fixed_rmc) {
 			g_flg_noalt = true;
-			logger_debug("altitude or speed is not available. skip GPS data2");
+			logger_debug("altitude or speed is not available. skip GPS data2 "
+				"(alt:%d speed:%d)", g_fix.has_altitude, g_fix.has_speed);
 		}
 
 		return ok;
@@ -625,6 +1174,12 @@ int main(void)
 	sd_spi_hw_init();
 	gps_uart_init();
 
+	// start listening for the module's rate straight away. nothing is sent until something
+	// intelligible has been heard, because the rate it comes up at cannot be assumed
+	g_gps_cfg_sent_us = time_us_64();
+
+	g_rate_window_us = time_us_64();
+
 	logger_debug("MotoRecoPico starting");
 
 	mount_card();
@@ -725,6 +1280,12 @@ int main(void)
 			} else {
 				log_gps_state("searching", now_us);
 			}
+		}
+
+		gps_cfg_tick(now_us);
+
+		if (now_us - g_rate_window_us >= (uint64_t)GPS_RATE_REPORT_MS * 1000ULL) {
+			gps_rate_report(now_us);
 		}
 
 		// the receiver went quiet after having talked: a broken wire, a browned out module, or a
