@@ -199,7 +199,7 @@ chkdsk を要する形で壊れる可能性がある（**トリップログは�
 | コマンド | 用途 |
 |---|---|
 | `PMTK251` | NMEA のボーレート。**10Hz を入れるにはこれが先**。4800〜921600 |
-| `PMTK314` | 出力する NMEA 文とその頻度。**GGA と RMC のみ**に絞る（22フィールド）|
+| `PMTK314` | 出力する NMEA 文とその頻度（22フィールド）。各値は**測位レートの分周比**で 0=停止 / 1=毎回 / 2〜5=n回ごと |
 | `PMTK220` | 測位間隔 [ms]。範囲 **100〜10000**（1000ms超は秒単位に丸められる）|
 | `PMTK400` | 現在の測位間隔の**問い合わせ**。`$PMTK500,...` で返ってくる |
 
@@ -254,8 +254,8 @@ gps rate: 20.0 sentences/s 1440 B/s (12% of 115200 baud) avg 72 B/sentence bad:0
 gps: module is at 9600 baud
 gps: raising the link from 9600 to 115200 baud
 gps: PMTK251 applied, the link is now 115200 baud
-gps: configuring for 100ms fixes (10.0Hz), GGA and RMC only
-gps: sentence set applied (GGA + RMC)
+gps: configuring for 100ms fixes (10.0Hz), GGA+RMC every fix, GSA+GSV every 5 (2.0Hz)
+gps: sentence set applied (GGA+RMC every fix, GSA+GSV every 5)
 gps: fix interval accepted (100ms, 10.0Hz)
 gps: module holds 100ms fixes (10.0Hz), as asked
 ```
@@ -300,15 +300,40 @@ gps: module is at 115200 baud
 gps rate: 20.0 sentences/s 1440 B/s (12% of 115200 baud) avg 72 B/sentence bad:0 uart_lost:0 (want 100ms, module 100ms)
 ```
 
-（↑ 2026-10-13 の実測値そのまま。10Hz 稼働中・測位済みの定常状態）
+（↑ 2026-10-13 の実測値。**GSA / GSV を止めていたとき**の 10Hz 定常状態。
+GSA / GSV を 2Hz で戻した現在は、文数が約 20 → 約 38/秒、バイト数が約 2600 B/s、
+`% of 115200 baud` が 20% 台になるのが期待値）
 
 - 末尾の `(want Nms, module Nms)` が**自己検証**。ここが食い違っていたら周期は通っていない
 - `% of ... baud` が 100% を超えたら溢れている。`bad:`（チェックサム不一致）と
   `uart_lost:`（UART リングの溢れ）も同時に増える
 - `avg B/sentence` が実測の1文長
 
-> **GSA / GSV を止めるため、status 行の衛星数・SNR・HDOP は 0 のまま**になる。
-> 周期を上げる代償として割り切った項目（`gps_rate = 0` に戻せば復活する）。
+### 文ごとの頻度（GSA / GSV は 2Hz）
+
+ログの中身として要るのは GGA と RMC だけなので**この2つだけ毎測位**。GSA と GSV は診断用なので
+**5測位ごと**に落としている（100ms × 5 = **2Hz**）。GLL と VTG は GGA / RMC の内容と重複するので停止。
+
+**2Hz なのは妥協ではなく上限。** PMTK314 の値は「測位レートの分周比」で、
+ガイドが定義する**最大は 5**（`5 - Output once every five position fixes`）。
+測位が 10Hz なので、**5分周の 2Hz より遅くは指定できない**。
+衛星が何個見えているかを知るには 2Hz で十分すぎる。
+
+帯域は 115200 にしたので問題にならない:
+
+| 文 | 頻度 | 実測/概算 |
+|---|---|---|
+| GGA + RMC | 10Hz | **1440 B/s**（実測）|
+| GSA + GSV | 2Hz | 約 1200 B/s（概算）|
+| 合計 | | 約 2600 B/s = **115200 の約23%** |
+
+GSA / GSV が戻ったことで、status 行の **`sats used` / `view` / `tracked` / `best snr` /
+`mode:3D` が再び埋まる**（止めていた間は 0 のままだった）。測位が遅いときの切り分けは
+これがないと始まらないので、帯域が許すなら戻すのが正しい。
+
+> `gps_rate` を 1000（1Hz）にすると GSA / GSV は 5分周で **0.2Hz** まで落ちる。
+> 分周比は測位レートに対する相対値なので、遅い周期で使うなら
+> `GPS_SENTENCES_WANTED`（`config.h`）の 4・5 番目のフィールドを 1 に戻すとよい。
 
 
 ## 設定ファイル `MOTORECO.CFG`
@@ -423,6 +448,8 @@ gps searching after 30s: quality:0 mode:1D sats used:0 view:9 tracked:4 best snr
 | 測位前に変な日付 | `gps: the receiver reports 2080-01-06 ... with no fix` | 正常な動作。測位前の受信機の推測を**捨てている**行 |
 
 測位した瞬間と失った瞬間にも1行ずつ出る（`gps fixed after 42s: ...` / `gps fix lost after ...`）。
+`sats used` / `view` / `tracked` / `best snr` / `mode` は GSA と GSV から来るので、
+**この2文を止めると全部 0 になる**（現在は2Hz で出しているので埋まる。上記「文ごとの頻度」参照）。
 最初の1文を受信した時点でも `gps talking: first sentence '$GNGGA' at 9600 baud` を出すので、
 **配線とボーレートが合っているかは起動直後に確定できる**。
 
@@ -485,6 +512,7 @@ SD カードの書き込みが数百 ms 詰まっても溢れない。
 
 GPS はこれに対して**桁が違う**。1Hz なら毎秒 2 レコード（位置 + 高度/速度）で 32 B/秒、
 10Hz でも毎秒 20 レコードの **320 B/秒**にすぎず、CAN の 18.5 KB/秒に対して 2% 以下。
+GSA / GSV は `.dat` に一切書かれない（診断専用）ので、**カードに対しては完全に無料**。
 **周期を上げてもカードが律速になることはない。**
 ただし `.dat` 内の GPS 点は 10 倍になるので、ビューア側で約1Hz を前提にした処理
 （平滑化、速度の微分）があれば最初の高速ログで見ておく価値はある。

@@ -402,7 +402,7 @@ static void gps_cfg_advance(gps_cfg_step_t step, uint64_t now_us)
 		break;
 
 	case GPS_CFG_SENTENCES:
-		gps_send(GPS_SENTENCES_MINIMAL);
+		gps_send(GPS_SENTENCES_WANTED);
 		break;
 
 	case GPS_CFG_RATE:
@@ -432,8 +432,10 @@ static void gps_cfg_after_baud(uint64_t now_us)
 		return;
 	}
 
-	logger_debug("gps: configuring for %dms fixes (%.1fHz), GGA and RMC only",
-		g_settings.gps_rate_ms, (double)1000.0 / (double)g_settings.gps_rate_ms);
+	logger_debug("gps: configuring for %dms fixes (%.1fHz), GGA+RMC every fix, "
+		"GSA+GSV every %d (%.1fHz)", g_settings.gps_rate_ms,
+		(double)1000.0 / (double)g_settings.gps_rate_ms, GPS_DIAG_DIVIDER,
+		(double)1000.0 / ((double)g_settings.gps_rate_ms * (double)GPS_DIAG_DIVIDER));
 
 	g_gps_rate_try_ms = g_settings.gps_rate_ms;
 	gps_cfg_advance(GPS_CFG_SENTENCES, now_us);
@@ -471,13 +473,16 @@ static void gps_cfg_baud_give_up(uint64_t now_us)
 static void gps_cfg_on_sentences_ack(int flag, uint64_t now_us)
 {
 	if (flag == GPS_ACK_OK) {
-		logger_debug("gps: sentence set applied (GGA + RMC)");
+		logger_debug("gps: sentence set applied (GGA+RMC every fix, GSA+GSV every %d)",
+			GPS_DIAG_DIVIDER);
 	} else {
 		// there is no ladder for a sentence set, and putting the module's default set back
-		// (PMTK314,-1) would turn GLL/VTG/GSA/GSV on and make the bandwidth strictly worse. a
-		// fatter set only means the rate ladder settles on a slower rung, and PMTK400 will say so
+		// (PMTK314,-1) would only confirm it. the module's own set emits GLL and VTG as well,
+		// and all of it on every fix, so the rate ladder below will settle on a slower rung --
+		// and PMTK400 will say which
 		logger_debug("gps: PMTK314 refused (flag %d). the receiver keeps its own sentence set, "
-			"so GSA/GSV stay on and the rate ladder will settle slower", flag);
+			"so GLL/VTG come back and everything runs at the full fix rate. the rate ladder "
+			"will settle slower", flag);
 	}
 
 	g_gps_cfg_tries = 0;

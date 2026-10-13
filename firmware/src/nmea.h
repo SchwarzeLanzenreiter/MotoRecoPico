@@ -50,8 +50,12 @@ enum {
 };
 
 // GSV comes as a series of sentences per constellation, so the counts have to be accumulated
-// across a cycle before they mean anything. one slot per talker (GP, GL, GA, ...)
-#define NMEA_MAX_TALKERS 4
+// across a cycle before they mean anything. one slot per talker (GP, GL, GA, ...).
+//
+// six, because a talker with no slot left is dropped from the totals in silence (see gsv_slot),
+// and this receiver can report GP, GL, GA, GB and GQ at once -- QZSS is enabled by default on
+// it. undercounting the satellites in view would quietly defeat the one thing GSV is kept for
+#define NMEA_MAX_TALKERS 6
 
 typedef struct {
 	char	id[3];			// talker, e.g. "GP". empty slot while id[0] == 0

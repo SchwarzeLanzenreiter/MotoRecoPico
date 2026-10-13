@@ -724,11 +724,18 @@ static void test_gps_cmd(void)
 	check(gps_cmd_build(out, sizeof(out), "PMTK314,-1"), "built the sentence reset");
 	check(strcmp(out, "$PMTK314,-1*04\r\n") == 0, "PMTK314,-1 checksum matches the guide");
 
-	// the set this firmware actually sends: GGA and RMC on every fix, everything else off
-	check(gps_cmd_build(out, sizeof(out), GPS_SENTENCES_MINIMAL), "built the minimal set");
+	// the set this firmware actually sends: GGA and RMC on every fix, GSA and GSV every fifth,
+	// everything else off. field 4 is GSA and field 5 is GSV, per the guide's numbering, and 5
+	// is the largest divider it defines
+	check(gps_cmd_build(out, sizeof(out), GPS_SENTENCES_WANTED), "built the wanted set");
 	check(strcmp(out,
-		"$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*34\r\n") == 0,
-		"minimal sentence set checksum");
+		"$PMTK314,0,1,0,1,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*34\r\n") == 0,
+		"wanted sentence set checksum");
+
+	// the divider has to be one PMTK314 accepts, or the receiver refuses the whole sentence and
+	// quietly keeps GLL/VTG at the full fix rate
+	check(GPS_DIAG_DIVIDER >= 1 && GPS_DIAG_DIVIDER <= 5,
+		"the diagnostic divider is within the guide's 1..5");
 
 
 	// no room, no command. better than a truncated sentence on the wire

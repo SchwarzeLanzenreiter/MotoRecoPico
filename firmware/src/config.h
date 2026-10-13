@@ -149,14 +149,23 @@
 // actually comes out of the receiver
 // ---------------------------------------------------------------------------
 
-// GGA and RMC only, every fix. the 22 fields are the sentence list in the order the guide gives:
-// GLL, RMC, VTG, GGA, GSA, GSV, GRS, GST, PLT, PLP, PLS, PLI, PLH, MALM, MEPH, MDGP, MDBG, ZDA,
-// MCHN, DTM, GBS, GPACCURACY. a field of 0 disables that sentence, 1 emits it on every fix, and
-// 2 to 5 emit it every n-th fix.
+// what the receiver is told to emit. the 22 fields are the sentence list in the order the guide
+// gives: GLL, RMC, VTG, GGA, GSA, GSV, GRS, GST, PLT, PLP, PLS, PLI, PLH, MALM, MEPH, MDGP,
+// MDBG, ZDA, MCHN, DTM, GBS, GPACCURACY. each field is a divider of the FIX rate, not a rate of
+// its own: 0 disables the sentence, 1 emits it on every fix, and 2 to 5 emit it every n-th fix.
 //
-// GSA and GSV are off, which is what pays for the higher rate. the satellite count and SNR in
-// the status line go to zero with them: that diagnostic is the price of the bandwidth
-#define GPS_SENTENCES_MINIMAL	"PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
+// so: GGA and RMC every fix, because they are the log's actual payload. GSA and GSV every fifth
+// fix, because they are only diagnostics -- which at a 100ms fix interval is 500ms, or 2Hz.
+//
+// 2Hz rather than 1Hz is not a choice: 5 is the largest divider the guide defines, so with 10Hz
+// fixes there is no way to ask for anything slower. 2Hz is plenty for "how many satellites can
+// it see", and the bandwidth is there now that the link runs at 115200 -- measured GGA+RMC at
+// 10Hz is 1440 B/s, and GSA+GSV at 2Hz adds roughly another 1200, which is about a quarter of
+// what 115200 carries. GLL and VTG stay off: they repeat what GGA and RMC already said
+#define GPS_SENTENCES_WANTED	"PMTK314,0,1,0,1,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
+
+// the divider used for GSA and GSV above, so the log can say what it asked for. must match
+#define GPS_DIAG_DIVIDER		5
 
 // the module's own default set, for putting a module back the way it was
 #define GPS_SENTENCES_DEFAULT	"PMTK314,-1"
