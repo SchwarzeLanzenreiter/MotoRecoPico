@@ -61,6 +61,7 @@ static volatile uint32_t g_gps_tail;
 static volatile uint32_t g_gps_drops;
 
 static volatile uint32_t g_gps_bytes;	// raw bytes off the wire, for the throughput report
+static volatile uint32_t g_gps_ring_peak;	// fullest the ring got in this rate window
 
 static void on_uart_rx(void)
 {
@@ -77,6 +78,15 @@ static void on_uart_rx(void)
 
 		g_gps_ring[g_gps_head] = c;
 		g_gps_head = next;
+
+		// how close the ring came to overflowing is the margin the loop stalls leave
+		{
+			uint32_t fill = (next + GPS_RING_BYTES - g_gps_tail) % GPS_RING_BYTES;
+
+			if (fill > g_gps_ring_peak) {
+				g_gps_ring_peak = fill;
+			}
+		}
 	}
 }
 
@@ -135,6 +145,13 @@ static bool g_flg_sd_err;
 
 static uint32_t g_overflow_total;
 static uint32_t g_nonstd_dropped;
+
+// main loop stalls. the CAN ring and the GPS ring both only hold for as long as the loop comes
+// back to drain them, and the one thing that keeps it away is the card holding a write
+static uint32_t g_stall_count;			// iterations of LOOP_STALL_WARN_MS or more since power up
+static uint32_t g_stall_max_ms;			// the longest of them
+static uint64_t g_stall_reported_us;
+static bool g_stall_reported;
 
 // GPS diagnostics. a slow fix has several very different causes (nothing on the wire, wrong baud,
 // no antenna, no sky, or simply a cold start) and they are indistinguishable from "not fixed yet"
@@ -785,12 +802,13 @@ static void gps_rate_report(uint64_t now_us)
 	// the trailing pair is what makes this line self checking: if the module is not holding the
 	// interval we asked for, the two numbers disagree and the whole experiment is answered here
 	logger_debug("gps rate: %u.%u sentences/s %u B/s (%u%% of %d baud) avg %u B/sentence "
-		"bad:%u uart_lost:%u (want %dms, module %dms)",
+		"bad:%u uart_lost:%u ring peak:%u/%u (want %dms, module %dms)",
 		(unsigned int)(sentences * 10 / secs / 10), (unsigned int)(sentences * 10 / secs % 10),
 		(unsigned int)(bytes / secs), (unsigned int)(bytes / secs * 100 / capacity),
 		g_gps_baud,
 		(unsigned int)(sentences ? bytes / sentences : 0),
 		(unsigned int)bad, (unsigned int)drops,
+		(unsigned int)g_gps_ring_peak, (unsigned int)GPS_RING_BYTES,
 		g_gps_rate_accepted_ms ? g_gps_rate_accepted_ms : g_settings.gps_rate_ms,
 		g_gps_rate_effective_ms);
 
@@ -799,6 +817,7 @@ static void gps_rate_report(uint64_t now_us)
 	g_rate_sentences0 = g_gps_sentences;
 	g_rate_bad0 = g_gps_bad;
 	g_rate_drops0 = g_gps_drops;
+	g_gps_ring_peak = 0;
 }
 
 static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
@@ -998,6 +1017,50 @@ static bool handle_gps(uint64_t now_us)
 	}
 
 	return ok;
+}
+
+// ---------------------------------------------------------------------------
+// loop stalls
+// ---------------------------------------------------------------------------
+
+// split by phase, because the fix for a stall depends on where it is: record writes and the
+// periodic f_sync go through different FatFs paths, and "other" is the debug log's own writes
+static void check_loop_stall(uint64_t start_us, uint64_t end_us, uint64_t can_us,
+	uint64_t gps_us, uint64_t sync_us)
+{
+	uint64_t total_us = end_us - start_us;
+	uint64_t other_us;
+	uint32_t total_ms = (uint32_t)(total_us / 1000ULL);
+
+	if (total_ms < LOOP_STALL_WARN_MS) {
+		return;
+	}
+
+	g_stall_count++;
+
+	if (total_ms > g_stall_max_ms) {
+		g_stall_max_ms = total_ms;
+	}
+
+	// rate limited, and the counts in the status line carry whatever this skips. the line is a
+	// write to the same card, so an unthrottled one could keep a slow card stalling
+	if (g_stall_reported &&
+	    end_us - g_stall_reported_us < (uint64_t)LOOP_STALL_REPORT_MS * 1000ULL) {
+		return;
+	}
+
+	g_stall_reported = true;
+	g_stall_reported_us = end_us;
+
+	other_us = total_us - can_us - gps_us - sync_us;
+
+	logger_debug("main loop stalled %ums (records %u, gps %u, sync %u, other %u ms). "
+		"gps ring peak:%u/%u. stalls so far:%u longest:%ums",
+		(unsigned int)total_ms, (unsigned int)(can_us / 1000ULL),
+		(unsigned int)(gps_us / 1000ULL), (unsigned int)(sync_us / 1000ULL),
+		(unsigned int)(other_us / 1000ULL),
+		(unsigned int)g_gps_ring_peak, (unsigned int)GPS_RING_BYTES,
+		(unsigned int)g_stall_count, (unsigned int)g_stall_max_ms);
 }
 
 // ---------------------------------------------------------------------------
@@ -1256,16 +1319,23 @@ int main(void)
 #endif
 
 	while (true) {
+		uint64_t phase_us, can_us, gps_us, sync_us = 0;
+
 		now_us = time_us_64();
 
 		// before anything else. every millisecond spent elsewhere comes out of the 0.4s the
 		// board has left once this fires
 		handle_ignition();
 
+		phase_us = time_us_64();
+
 		if (logger_is_open()) {
 			if (!handle_can_frames()) {
 				drop_card("write failed");
 			}
+
+			can_us = time_us_64() - phase_us;
+			phase_us += can_us;
 
 			if (logger_is_open() && !handle_gps(now_us)) {
 				drop_card("write failed");
@@ -1273,15 +1343,22 @@ int main(void)
 		} else {
 			// no card: still drain both sources, or the CAN ring fills and the UART overruns
 			handle_can_frames();
+			can_us = time_us_64() - phase_us;
+			phase_us += can_us;
 			handle_gps(now_us);
 		}
 
+		gps_us = time_us_64() - phase_us;
+
 		if (now_us - last_sync_us >= (uint64_t)LOG_FLUSH_INTERVAL_MS * 1000ULL) {
 			last_sync_us = now_us;
+			phase_us = time_us_64();
 
 			if (logger_is_open() && !logger_sync()) {
 				drop_card("sync failed");
 			}
+
+			sync_us = time_us_64() - phase_us;
 
 			// a card pulled mid ride is worth catching early, but only where the detect line has
 			// proven itself by agreeing with a card that actually answered. on a board where it
@@ -1364,10 +1441,12 @@ int main(void)
 			// clamped: records the monotonic guard in stamp_record had to pin to the previous
 			// timestamp. expected to stay 0 now that gps records read the clock when they are
 			// written; a number that climbs means the two clocks are fighting again
-			logger_debug("status: rx:%u records:%u clamped:%u ig:%dmV(%s) | gps fix:%d mode:%dD "
-				"sats used:%d view:%d snr:%d hdop:%.1f sentences:%u bad:%u uart_lost:%u",
+			logger_debug("status: rx:%u records:%u clamped:%u stalls:%u longest:%ums ig:%dmV(%s) "
+				"| gps fix:%d mode:%dD sats used:%d view:%d snr:%d hdop:%.1f sentences:%u bad:%u "
+				"uart_lost:%u",
 				(unsigned int)mcp25625_rx_count(), (unsigned int)logger_records_written(),
 				(unsigned int)g_clamped_records,
+				(unsigned int)g_stall_count, (unsigned int)g_stall_max_ms,
 				g_ig_mv, g_power.off ? "off" : "on",
 				g_fix.has_fix, g_fix.fix_mode, g_fix.sats_used,
 				nmea_sats_in_view(&g_fix), nmea_best_snr(&g_fix), (double)g_fix.hdop,
@@ -1388,6 +1467,12 @@ int main(void)
 		}
 
 		led_update(now_us);
+
+		// only with a log open. without a card the loop spends whole seconds retrying the mount on
+		// purpose, and nothing is being recorded for a stall to cost
+		if (logger_is_open()) {
+			check_loop_stall(now_us, time_us_64(), can_us, gps_us, sync_us);
+		}
 
 		// nothing to do until the next interrupt. this is not a fixed rate loop, it just yields
 		// the core between bursts of work

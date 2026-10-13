@@ -276,7 +276,15 @@
 // SD write stall observed in practice
 #define CAN_RING_RECORDS	4096
 
-#define GPS_RING_BYTES		2048	// UART receive ring. one NMEA sentence is at most 82 bytes
+// UART receive ring. the main loop drains it, so it has to outlast the same SD stalls the CAN ring
+// does: 2048 bytes overflowed during a 0.93s stall at 10Hz, which runs about 2.7KB/s. 8192 covers
+// about 3 seconds of that, in line with the CAN ring
+#define GPS_RING_BYTES		8192
+
+// a main loop iteration this long is reported. the loop normally turns over in microseconds, so
+// anything this slow is the card holding a write, and it is the time both rings have to cover
+#define LOOP_STALL_WARN_MS	200
+#define LOOP_STALL_REPORT_MS	10000	// at most one stall line this often. the line is itself a write
 
 // ---------------------------------------------------------------------------
 // LED patterns (docs/netlist.md section 3.5)
