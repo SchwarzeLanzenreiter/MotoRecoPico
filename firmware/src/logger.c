@@ -34,7 +34,17 @@
 #include "wallclock.h"
 
 #define TRIP_NAME_MAX	32
-#define WRITE_BUF_RECORDS	32		// 512 bytes, one card sector
+// records are written to the card in sector sized multiples, and the file never ends part way
+// into a sector until it is closed. a full buffer is 32 sectors that FatFs hands straight to the
+// driver as one multiple block write (ACMD23 + CMD25), instead of 32 single block writes a second.
+//
+// 512 byte writes are where the loop stalls were measured (895ms and 375ms on the bench, both in
+// the records phase), and the old once a second flush of a partial sector made the card program
+// the same sector twice: once half full at the sync, again when the next records completed it
+#define SECTOR_RECORDS		(512 / sizeof(struct CANData))	// 32
+#define WRITE_BUF_RECORDS	(SECTOR_RECORDS * 32)			// 16KB, about 0.9s of a busy bus
+
+MR_STATIC_ASSERT(512 % sizeof(struct CANData) == 0, "a record must not straddle a sector");
 
 static FATFS g_fs;
 static FIL g_file;
@@ -119,11 +129,15 @@ static bool rename_open_file(uint64_t monotonic_us, bool reopen)
 	return true;
 }
 
-static bool flush_buffer(void)
+// whole: write everything, for the last write before the file closes for good. otherwise only
+// the complete sectors go out and the tail waits in the buffer for the next call, which keeps the
+// file position on a sector boundary for FatFs to write straight from g_buf
+static bool flush_records(bool whole)
 {
 	UINT written = 0;
+	size_t count = whole ? g_buf_count : g_buf_count - g_buf_count % SECTOR_RECORDS;
 
-	if (g_buf_count == 0) {
+	if (count == 0) {
 		return true;
 	}
 
@@ -132,15 +146,29 @@ static bool flush_buffer(void)
 		return false;
 	}
 
-	if (f_write(&g_file, g_buf, g_buf_count * sizeof(struct CANData), &written) != FR_OK ||
-	    written != g_buf_count * sizeof(struct CANData)) {
+	if (f_write(&g_file, g_buf, count * sizeof(struct CANData), &written) != FR_OK ||
+	    written != count * sizeof(struct CANData)) {
 		g_buf_count = 0;
 		return false;
 	}
 
-	g_buf_count = 0;
+	g_buf_count -= count;
+
+	if (g_buf_count > 0) {
+		memmove(g_buf, &g_buf[count], g_buf_count * sizeof(struct CANData));
+	}
 
 	return true;
+}
+
+static bool flush_buffer(void)
+{
+	return flush_records(true);
+}
+
+static bool flush_sectors(void)
+{
+	return flush_records(false);
 }
 
 #define TMP_SWEEP_MAX	100		// bounds the rescans below on a card that is somehow full of them
@@ -318,7 +346,7 @@ bool logger_write(const struct CANData *rec)
 		return true;
 	}
 
-	return flush_buffer();
+	return flush_sectors();
 }
 
 bool logger_sync(void)
@@ -327,7 +355,9 @@ bool logger_sync(void)
 		return false;
 	}
 
-	if (!flush_buffer()) {
+	// whole sectors only. the tail (under 32 records, a few tens of milliseconds) stays here and
+	// is the only thing a power cut costs beyond the second since the last sync
+	if (!flush_sectors()) {
 		return false;
 	}
 
@@ -348,7 +378,9 @@ bool logger_name_from_clock(void)
 		return false;
 	}
 
-	if (!flush_buffer()) {
+	// the file is closed and reopened for append, so what is written now decides where the
+	// appending starts. keep it on a sector boundary; the tail is still in g_buf afterwards
+	if (!flush_sectors()) {
 		return false;
 	}
 
