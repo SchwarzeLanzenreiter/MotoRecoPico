@@ -97,6 +97,14 @@ if(CAN_SELF_TEST)
     target_compile_definitions(motorecopico PRIVATE CAN_SELF_TEST=1)
 endif()
 
+# bench build: stalls the main loop this many milliseconds every 10 seconds, standing in for a card
+# that holds a write. 0 is off. never for the bike
+set(STALL_TEST_MS 0 CACHE STRING "bench only: main loop stall in ms every 10s, 0 = off")
+
+if(STALL_TEST_MS)
+    target_compile_definitions(motorecopico PRIVATE STALL_TEST_MS=${STALL_TEST_MS})
+endif()
+
 # the same tests test/build.ps1 runs on a PC, built to run on the target instead. useful because
 # the toolchain for this board does not imply a host compiler, and because only the target build
 # proves struct CANData really is 16 bytes on arm. runs on any Pico 2, no MotoRecoPico board needed

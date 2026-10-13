@@ -369,6 +369,19 @@ bool mcp25625_pop(can_frame_t *out)
 	return true;
 }
 
+bool mcp25625_peek_timestamp(uint64_t *out)
+{
+	uint32_t tail = g_tail;
+
+	if (tail == g_head) {
+		return false;
+	}
+
+	*out = g_ring[tail].timestamp_us;
+
+	return true;
+}
+
 uint32_t mcp25625_check_overflow(void)
 {
 	uint8_t eflg;

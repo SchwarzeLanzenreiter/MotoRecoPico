@@ -63,6 +63,17 @@ static volatile uint32_t g_gps_drops;
 static volatile uint32_t g_gps_bytes;	// raw bytes off the wire, for the throughput report
 static volatile uint32_t g_gps_ring_peak;	// fullest the ring got in this rate window
 
+// the time each '$' in the ring arrived, in the same order. a GPS record is stamped with when its
+// sentence started arriving, the way a CAN frame is stamped by its interrupt: stamping it when it
+// is written put every fix that waited out an SD stall on the same millisecond, 0.8s late.
+//
+// the two rings cannot drift apart: a '$' only goes into the byte ring together with its stamp,
+// so every '$' the main loop pops has exactly one stamp waiting for it
+#define GPS_STAMP_SLOTS		256		// sentences, not bytes. the byte ring holds ~130 at 61B each
+static uint64_t g_gps_stamp[GPS_STAMP_SLOTS];
+static volatile uint32_t g_stamp_head;
+static volatile uint32_t g_stamp_tail;
+
 static void on_uart_rx(void)
 {
 	while (uart_is_readable(uart0)) {
@@ -74,6 +85,20 @@ static void on_uart_rx(void)
 		if (next == g_gps_tail) {
 			g_gps_drops++;
 			continue;
+		}
+
+		// no stamp slot, no '$'. the sentence then arrives headless and is dropped as bad, which
+		// is what a lost '$' already did
+		if (c == '$') {
+			uint32_t stamp_next = (g_stamp_head + 1) % GPS_STAMP_SLOTS;
+
+			if (stamp_next == g_stamp_tail) {
+				g_gps_drops++;
+				continue;
+			}
+
+			g_gps_stamp[g_stamp_head] = time_us_64();
+			g_stamp_head = stamp_next;
 		}
 
 		g_gps_ring[g_gps_head] = c;
@@ -90,7 +115,8 @@ static void on_uart_rx(void)
 	}
 }
 
-static bool gps_pop(uint8_t *out)
+// rx_us is only written for a '$', with the time that sentence started arriving
+static bool gps_pop(uint8_t *out, uint64_t *rx_us)
 {
 	uint32_t tail = g_gps_tail;
 
@@ -99,6 +125,12 @@ static bool gps_pop(uint8_t *out)
 	}
 
 	*out = g_gps_ring[tail];
+
+	if (*out == '$' && g_stamp_tail != g_stamp_head) {
+		*rx_us = g_gps_stamp[g_stamp_tail];
+		g_stamp_tail = (g_stamp_tail + 1) % GPS_STAMP_SLOTS;
+	}
+
 	g_gps_tail = (tail + 1) % GPS_RING_BYTES;
 
 	return true;
@@ -230,15 +262,15 @@ static void reset_log_state(void)
 	// a fix, not whether something was reported, so opening a new file must not disturb it
 }
 
-// every record in the file passes through here, and two different clocks feed it: a CAN frame
-// carries the time its interrupt captured it, a GPS record the time it was written. a frame the
-// interrupt stores while the loop is already past the CAN drain is therefore stamped LATER than
-// a GPS record written after it, and the file's time went backwards -- measured at 4 records in
-// 27846 once the GPS rate went to 10Hz, worst case 2ms. the 1Hz logs never showed it.
+// every record in the file passes through here. both kinds carry the time an interrupt saw them
+// arrive: a CAN frame its capture, a GPS record the '$' of its sentence. they used to differ --
+// GPS was stamped when written, which ran backwards against CAN 4 times in 27846 records at 10Hz
+// (worst 2ms), and after an SD stall put every waiting fix on the same millisecond. now the two
+// are merged in time order before they get here (see write_gps_pending).
 //
-// the interrupt's timestamp is the accurate one and worth keeping, so the ordering is repaired
-// here rather than by making CAN less precise. a record never carries a time earlier than the
-// record before it; the few that would are pinned to that previous value instead.
+// the guard below stays as the guarantee rather than the fix: a record never carries a time
+// earlier than the record before it; one that would is pinned to that previous value instead.
+// the merge leaves it almost nothing to do, so a clamped: count that climbs means it is broken.
 //
 // the same comparison also guards the subtraction. if such a frame is the very first record
 // stamped it sets the base ahead of a now_us that follows, and an unsigned wrap there would put
@@ -258,8 +290,8 @@ static void stamp_record(struct CANData *rec, uint64_t now_us)
 		if (!g_flg_clamped) {
 			g_flg_clamped = true;
 			logger_debug("record time went backwards by %uus and was pinned to the previous "
-				"record. two clocks feed the log: can frames are stamped by their interrupt, "
-				"gps records when they are written",
+				"record. can and gps records are merged in time order, so this one slipped past "
+				"the merge",
 				(unsigned int)(g_last_elapsed_us - elapsed));
 		}
 
@@ -314,6 +346,83 @@ static bool ig_sample(repeating_timer_t *timer)
 }
 
 // ---------------------------------------------------------------------------
+// GPS records waiting for their place in the file
+//
+// a GPS record carries the time its sentence arrived, which can be older than CAN frames still
+// sitting in the CAN ring -- after an SD stall by up to the length of the stall. the GPS side is
+// therefore parsed first and its records held here, and handle_can_frames writes each one just
+// before the first CAN frame captured after it, so the file comes out in time order
+// ---------------------------------------------------------------------------
+
+#define GPS_PENDING_SLOTS	128		// two records per fix. 3s of a 10Hz receiver is 60
+
+typedef struct {
+	struct CANData	rec;		// id and data filled in. the time is set when it is written
+	uint64_t		rx_us;		// when its sentence started arriving
+} gps_pending_t;
+
+static gps_pending_t g_gps_pending[GPS_PENDING_SLOTS];
+static uint32_t g_pending_head;		// main loop only, both ends
+static uint32_t g_pending_tail;
+
+static uint32_t gps_pending_free(void)
+{
+	return (g_pending_tail + GPS_PENDING_SLOTS - g_pending_head - 1) % GPS_PENDING_SLOTS;
+}
+
+// handle_gps stops parsing while there is no room, so this does not fail
+static void gps_pending_push(const struct CANData *rec, uint64_t rx_us)
+{
+	g_gps_pending[g_pending_head].rec = *rec;
+	g_gps_pending[g_pending_head].rx_us = rx_us;
+	g_pending_head = (g_pending_head + 1) % GPS_PENDING_SLOTS;
+}
+
+// writes every held record that arrived at or before until_us. with no card they go nowhere,
+// exactly as a GPS record written straight away did
+static bool write_gps_pending(uint64_t until_us)
+{
+	bool ok = true;
+
+	while (g_pending_tail != g_pending_head && g_gps_pending[g_pending_tail].rx_us <= until_us) {
+		gps_pending_t *p = &g_gps_pending[g_pending_tail];
+
+		g_pending_tail = (g_pending_tail + 1) % GPS_PENDING_SLOTS;
+
+		stamp_record(&p->rec, p->rx_us);
+
+		if (!logger_write(&p->rec)) {
+			ok = false;
+		}
+	}
+
+	return ok;
+}
+
+static uint64_t g_sentence_rx_us;	// arrival of the sentence the reader is assembling
+
+// is there a sentence that started arriving at or before when_us and has not been parsed yet?
+// its records do not exist yet, so nothing captured after its '$' may be written before it is.
+// measured on the bench: without this, frames newer than a sentence still in the UART ring went
+// to the card first, and the sentence's records were then clamped onto them -- 82 times in one
+// replay, and all three fixes that waited out an 895ms stall landed on the same millisecond.
+//
+// two places such a sentence can be: whole or in part in the ring, where the stamp ring holds its
+// '$', or already half way into the reader. the second is bounded, because a module that stops
+// talking mid sentence would otherwise hold back every CAN frame from then on
+static bool gps_unparsed_before(uint64_t when_us)
+{
+	uint32_t tail = g_stamp_tail;
+
+	if (tail != g_stamp_head && g_gps_stamp[tail] <= when_us) {
+		return true;
+	}
+
+	return g_reader.len > 0 && g_sentence_rx_us <= when_us &&
+	       time_us_64() - g_sentence_rx_us < (uint64_t)GPS_SENTENCE_MAX_MS * 1000ULL;
+}
+
+// ---------------------------------------------------------------------------
 // CAN
 // ---------------------------------------------------------------------------
 
@@ -326,7 +435,27 @@ static bool handle_can_frames(void)
 
 	// bounded, so a bus busy enough to refill the ring as fast as it drains cannot starve the
 	// GPS and housekeeping below
-	while (budget-- > 0 && mcp25625_pop(&frame)) {
+	while (budget-- > 0) {
+		uint64_t frame_us;
+
+		if (!mcp25625_peek_timestamp(&frame_us)) {
+			break;
+		}
+
+		// GPS records that arrived before this frame go first
+		if (!write_gps_pending(frame_us)) {
+			ok = false;
+		}
+
+		// and a sentence that arrived before it but is still unparsed has to be parsed first. the
+		// frame stays in the ring and the main loop comes straight back round to handle_gps. the
+		// pending queue was just emptied up to here, so handle_gps has the room to do it
+		if (gps_unparsed_before(frame_us)) {
+			break;
+		}
+
+		mcp25625_pop(&frame);
+
 		// struct CANData.id is 16 bits wide and has no room for a 29 bit id or a remote flag.
 		// the pi version dropped these rather than truncating them into a wrong standard id
 		if (frame.extended || frame.rtr) {
@@ -350,6 +479,21 @@ static bool handle_can_frames(void)
 		memcpy(rec.data, frame.data, (frame.dlc > 8) ? 8 : frame.dlc);
 
 		if (!logger_write(&rec)) {
+			ok = false;
+		}
+	}
+
+	// the rest: all of it when no frame is waiting, otherwise only what came before the next one.
+	// a frame captured after this point is newer than every sentence already parsed, and an
+	// unparsed sentence is newer than every pending record, so neither can be overtaken
+	{
+		uint64_t next_us;
+
+		if (!mcp25625_peek_timestamp(&next_us)) {
+			next_us = UINT64_MAX;
+		}
+
+		if (!write_gps_pending(next_us)) {
 			ok = false;
 		}
 	}
@@ -404,6 +548,7 @@ static void gps_set_baud(int baud)
 
 	uart_set_baudrate(uart0, (uint)baud);
 	g_gps_tail = g_gps_head;
+	g_stamp_tail = g_stamp_head;
 	nmea_reader_init(&g_reader);
 
 	irq_set_enabled(UART0_IRQ, true);
@@ -820,19 +965,20 @@ static void gps_rate_report(uint64_t now_us)
 	g_gps_ring_peak = 0;
 }
 
-static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
+// rx_us is when the sentence started arriving, and it is the time its records carry. now_us is the
+// loop's clock and only feeds the diagnostics. nothing here writes a record: they are queued for
+// handle_can_frames to put in time order, so this has no write to fail
+static void handle_gps_sentence(const char *sentence, uint64_t now_us, uint64_t rx_us)
 {
 	struct CANData rec;
 	int32_t lon, lat;
-	uint64_t write_us;
-	bool ok = true;
 	int result = nmea_parse(&g_fix, sentence);
 
 	if (result == NMEA_RESULT_INVALID) {
 		// a few of these at power up are normal, the receiver may be mid sentence when the UART
 		// starts. a steady stream of them means the baud rate is wrong
 		g_gps_bad++;
-		return true;
+		return;
 	}
 
 	g_gps_sentences++;
@@ -864,7 +1010,7 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 	if (g_gps_cfg_step == GPS_CFG_PROBE) {
 		logger_debug("gps: module is at %d baud", g_gps_baud);
 		gps_cfg_begin(now_us);
-		return true;
+		return;
 	}
 
 	// only once our side has followed. while the settle window is still running the module is
@@ -872,17 +1018,17 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 	if (g_gps_cfg_step == GPS_CFG_BAUD && g_gps_baud_switched) {
 		logger_debug("gps: PMTK251 applied, the link is now %d baud", g_gps_baud);
 		gps_cfg_after_baud(now_us);
-		return true;
+		return;
 	}
 
 	// PMTK001 and PMTK500 are answers to our own commands, not navigation data. this has to come
 	// before the NMEA_RESULT_IGNORED return below, because a PMTK500 parses as ignored
 	if (gps_cfg_consume(sentence, now_us)) {
-		return true;
+		return;
 	}
 
 	if (result == NMEA_RESULT_IGNORED) {
-		return true;
+		return;
 	}
 
 	if (result == NMEA_RESULT_GGA && g_fix.has_fix) {
@@ -938,7 +1084,7 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 			g_gps_search_start_us = now_us;
 		}
 
-		return true;
+		return;
 	}
 
 	if (g_flg_nofix) {
@@ -952,25 +1098,15 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 	// GGA and RMC both carry the position, so a standing bike would otherwise write the same
 	// point twice a second forever
 	if (lon == g_lon_prev && lat == g_lat_prev) {
-		return true;
+		return;
 	}
 
 	g_lon_prev = lon;
 	g_lat_prev = lat;
 
-	// read the clock here rather than reusing the caller's now_us, which was taken at the top of
-	// the loop iteration and can be several milliseconds old by now: one iteration drains every
-	// sentence in the ring, and a logger_debug on the way writes to the card. a stale stamp is
-	// what put a GPS record before a CAN frame that the interrupt captured after it. both
-	// records below share the one reading, because they describe the same fix
-	write_us = time_us_64();
-
-	stamp_record(&rec, write_us);
+	// both records carry the sentence's arrival time, because they describe the same fix
 	record_gps_position(&rec, g_fix.latitude, g_fix.longitude);
-
-	if (!logger_write(&rec)) {
-		ok = false;
-	}
+	gps_pending_push(&rec, rx_us);
 
 	// altitude and speed are missing while the fix is 2D only. the pi saw those as NaN from gpsd
 	// and skipped this frame rather than logging garbage.
@@ -987,36 +1123,29 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 				"(alt:%d speed:%d)", g_fix.has_altitude, g_fix.has_speed);
 		}
 
-		return ok;
+		return;
 	}
 
 	g_flg_noalt = false;
 
-	stamp_record(&rec, write_us);
 	record_gps_alt_speed(&rec, g_fix.altitude, g_fix.speed);
-
-	if (!logger_write(&rec)) {
-		ok = false;
-	}
-
-	return ok;
+	gps_pending_push(&rec, rx_us);
 }
 
-static bool handle_gps(uint64_t now_us)
+// parses whatever has arrived and queues its records. one sentence makes at most two, so it stops
+// while there is not room for that and leaves the rest in the ring for the next pass
+static void handle_gps(uint64_t now_us)
 {
 	uint8_t c;
-	bool ok = true;
 	int budget = GPS_RING_BYTES;
 
-	while (budget-- > 0 && gps_pop(&c)) {
+	while (budget-- > 0 && gps_pending_free() >= 2 && gps_pop(&c, &g_sentence_rx_us)) {
 		const char *sentence = nmea_reader_push(&g_reader, (char)c);
 
-		if (sentence != NULL && !handle_gps_sentence(sentence, now_us)) {
-			ok = false;
+		if (sentence != NULL) {
+			handle_gps_sentence(sentence, now_us, g_sentence_rx_us);
 		}
 	}
-
-	return ok;
 }
 
 // ---------------------------------------------------------------------------
@@ -1327,28 +1456,34 @@ int main(void)
 		// board has left once this fires
 		handle_ignition();
 
+#ifdef STALL_TEST_MS
+		// bench only: stand in for a card that holds a write, to see the GPS records keep their
+		// spacing across a stall. never in a build that goes on the bike
+		{
+			static uint64_t last_stall_test_us;
+
+			if (now_us - last_stall_test_us >= 10000000ULL) {
+				last_stall_test_us = now_us;
+				busy_wait_ms(STALL_TEST_MS);
+			}
+		}
+#endif
+
 		phase_us = time_us_64();
 
-		if (logger_is_open()) {
-			if (!handle_can_frames()) {
-				drop_card("write failed");
-			}
-
-			can_us = time_us_64() - phase_us;
-			phase_us += can_us;
-
-			if (logger_is_open() && !handle_gps(now_us)) {
-				drop_card("write failed");
-			}
-		} else {
-			// no card: still drain both sources, or the CAN ring fills and the UART overruns
-			handle_can_frames();
-			can_us = time_us_64() - phase_us;
-			phase_us += can_us;
-			handle_gps(now_us);
-		}
+		// GPS first: parsing only queues its records, and the CAN drain below needs them queued
+		// to slot them in between the frames in time order
+		handle_gps(now_us);
 
 		gps_us = time_us_64() - phase_us;
+		phase_us += gps_us;
+
+		// no card: still drain both sources, or the CAN ring fills and the UART overruns
+		if (!handle_can_frames() && logger_is_open()) {
+			drop_card("write failed");
+		}
+
+		can_us = time_us_64() - phase_us;
 
 		if (now_us - last_sync_us >= (uint64_t)LOG_FLUSH_INTERVAL_MS * 1000ULL) {
 			last_sync_us = now_us;
@@ -1439,8 +1574,8 @@ int main(void)
 			// ig is the raw pin level, not a battery voltage. this pin cannot measure the
 			// battery on this board, see config.h
 			// clamped: records the monotonic guard in stamp_record had to pin to the previous
-			// timestamp. expected to stay 0 now that gps records read the clock when they are
-			// written; a number that climbs means the two clocks are fighting again
+			// timestamp. expected to stay at or near 0 now that CAN and GPS are merged in time
+			// order; a number that climbs means the merge is letting records through out of order
 			logger_debug("status: rx:%u records:%u clamped:%u stalls:%u longest:%ums ig:%dmV(%s) "
 				"| gps fix:%d mode:%dD sats used:%d view:%d snr:%d hdop:%.1f sentences:%u bad:%u "
 				"uart_lost:%u",

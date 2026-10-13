@@ -283,6 +283,10 @@
 
 // a main loop iteration this long is reported. the loop normally turns over in microseconds, so
 // anything this slow is the card holding a write, and it is the time both rings have to cover
+// a sentence takes ~6ms at 115200 and ~85ms at 9600. one still incomplete after this long is given
+// up on for the CAN/GPS ordering, so a module that stops mid sentence cannot hold the CAN drain
+#define GPS_SENTENCE_MAX_MS	200
+
 #define LOOP_STALL_WARN_MS	200
 #define LOOP_STALL_REPORT_MS	10000	// at most one stall line this often. the line is itself a write
 

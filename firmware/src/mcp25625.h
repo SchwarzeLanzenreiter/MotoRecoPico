@@ -53,6 +53,10 @@ bool mcp25625_init(bool loopback);
 // takes one frame out of the receive ring. false when the ring is empty
 bool mcp25625_pop(can_frame_t *out);
 
+// the capture time of the frame mcp25625_pop would return next, without taking it out. false when
+// the ring is empty. this is what lets GPS records be slotted in between frames in time order
+bool mcp25625_peek_timestamp(uint64_t *out);
+
 // reads and clears the controller's receive overflow flags. returns how many new overflows were
 // seen. this is the equivalent of the SO_RXQ_OVFL counter the raspberry pi version reported:
 // frames lost this way leave no trace in the .dat file
