@@ -190,16 +190,22 @@ static bool g_seen_fixed_gga;
 static bool g_seen_fixed_rmc;
 static bool g_flg_badtime;	// the receiver offered a date it cannot possibly have known
 
+static uint64_t g_last_elapsed_us;	// what the previous record was stamped with
+static uint32_t g_clamped_records;	// how often the monotonic guard in stamp_record had to act
+static bool g_flg_clamped;
+
 static void reset_log_state(void)
 {
 	// the pi cleared these on every key on, so each trip's file is self contained. a restart at
 	// the same spot would otherwise have its first fix suppressed as a duplicate
 	g_time_base_set = false;
+	g_last_elapsed_us = 0;	// elapsed restarts at 0 with the base, so the guard has to as well
 	g_lon_prev = 0;
 	g_lat_prev = 0;
 	g_flg_noalt = false;
 	g_flg_nonstd = false;
 	g_flg_badtime = false;
+	g_flg_clamped = false;
 	g_seen_fixed_gga = false;
 	g_seen_fixed_rmc = false;
 
@@ -207,14 +213,46 @@ static void reset_log_state(void)
 	// a fix, not whether something was reported, so opening a new file must not disturb it
 }
 
+// every record in the file passes through here, and two different clocks feed it: a CAN frame
+// carries the time its interrupt captured it, a GPS record the time it was written. a frame the
+// interrupt stores while the loop is already past the CAN drain is therefore stamped LATER than
+// a GPS record written after it, and the file's time went backwards -- measured at 4 records in
+// 27846 once the GPS rate went to 10Hz, worst case 2ms. the 1Hz logs never showed it.
+//
+// the interrupt's timestamp is the accurate one and worth keeping, so the ordering is repaired
+// here rather than by making CAN less precise. a record never carries a time earlier than the
+// record before it; the few that would are pinned to that previous value instead.
+//
+// the same comparison also guards the subtraction. if such a frame is the very first record
+// stamped it sets the base ahead of a now_us that follows, and an unsigned wrap there would put
+// a nonsense second count into the file rather than a 2ms wobble
 static void stamp_record(struct CANData *rec, uint64_t now_us)
 {
+	uint64_t elapsed;
+
 	if (!g_time_base_set) {
 		g_time_base_set = true;
 		g_time_base_us = now_us;
 	}
 
-	record_set_elapsed(rec, now_us - g_time_base_us);
+	elapsed = (now_us > g_time_base_us) ? (now_us - g_time_base_us) : 0;
+
+	if (elapsed < g_last_elapsed_us) {
+		if (!g_flg_clamped) {
+			g_flg_clamped = true;
+			logger_debug("record time went backwards by %uus and was pinned to the previous "
+				"record. two clocks feed the log: can frames are stamped by their interrupt, "
+				"gps records when they are written",
+				(unsigned int)(g_last_elapsed_us - elapsed));
+		}
+
+		g_clamped_records++;
+		elapsed = g_last_elapsed_us;
+	}
+
+	g_last_elapsed_us = elapsed;
+
+	record_set_elapsed(rec, elapsed);
 }
 
 // ---------------------------------------------------------------------------
@@ -767,6 +805,7 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 {
 	struct CANData rec;
 	int32_t lon, lat;
+	uint64_t write_us;
 	bool ok = true;
 	int result = nmea_parse(&g_fix, sentence);
 
@@ -900,7 +939,14 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 	g_lon_prev = lon;
 	g_lat_prev = lat;
 
-	stamp_record(&rec, now_us);
+	// read the clock here rather than reusing the caller's now_us, which was taken at the top of
+	// the loop iteration and can be several milliseconds old by now: one iteration drains every
+	// sentence in the ring, and a logger_debug on the way writes to the card. a stale stamp is
+	// what put a GPS record before a CAN frame that the interrupt captured after it. both
+	// records below share the one reading, because they describe the same fix
+	write_us = time_us_64();
+
+	stamp_record(&rec, write_us);
 	record_gps_position(&rec, g_fix.latitude, g_fix.longitude);
 
 	if (!logger_write(&rec)) {
@@ -927,7 +973,7 @@ static bool handle_gps_sentence(const char *sentence, uint64_t now_us)
 
 	g_flg_noalt = false;
 
-	stamp_record(&rec, now_us);
+	stamp_record(&rec, write_us);
 	record_gps_alt_speed(&rec, g_fix.altitude, g_fix.speed);
 
 	if (!logger_write(&rec)) {
@@ -1315,9 +1361,13 @@ int main(void)
 			last_status_us = now_us;
 			// ig is the raw pin level, not a battery voltage. this pin cannot measure the
 			// battery on this board, see config.h
-			logger_debug("status: rx:%u records:%u ig:%dmV(%s) | gps fix:%d mode:%dD "
+			// clamped: records the monotonic guard in stamp_record had to pin to the previous
+			// timestamp. expected to stay 0 now that gps records read the clock when they are
+			// written; a number that climbs means the two clocks are fighting again
+			logger_debug("status: rx:%u records:%u clamped:%u ig:%dmV(%s) | gps fix:%d mode:%dD "
 				"sats used:%d view:%d snr:%d hdop:%.1f sentences:%u bad:%u uart_lost:%u",
 				(unsigned int)mcp25625_rx_count(), (unsigned int)logger_records_written(),
+				(unsigned int)g_clamped_records,
 				g_ig_mv, g_power.off ? "off" : "on",
 				g_fix.has_fix, g_fix.fix_mode, g_fix.sats_used,
 				nmea_sats_in_view(&g_fix), nmea_best_snr(&g_fix), (double)g_fix.hdop,
