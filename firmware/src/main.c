@@ -1047,10 +1047,17 @@ static void handle_gps_sentence(const char *sentence, uint64_t now_us, uint64_t 
 	if (result == NMEA_RESULT_RMC && g_fix.time_from_fix &&
 	    nmea_time_plausible(g_fix.unix_time)) {
 		bool was_valid = wallclock_valid();
+		uint64_t frac_us = (uint64_t)g_fix.time_ms * 1000ULL;
 
-		// re-anchoring on every fixed RMC also corrects the drift of the pico's own oscillator
-		// over a long ride
-		wallclock_set(g_fix.unix_time, now_us);
+		// the sentence says "unix_time plus time_ms", and it started arriving at rx_us, so the
+		// whole second fell frac_us before that. it was anchored to the loop's now_us with the
+		// fraction dropped, which set the clock back by up to 0.9s at every 10Hz fix and walked
+		// the debug log's timestamps backwards. the clock runs late by the receiver's output
+		// delay, a constant few tens of ms. wallclock_sync also keeps up with the pico's own
+		// oscillator over a long ride
+		if (rx_us > frac_us) {
+			wallclock_sync(g_fix.unix_time, rx_us - frac_us);
+		}
 
 		if (!was_valid) {
 			logger_debug("gps time acquired");

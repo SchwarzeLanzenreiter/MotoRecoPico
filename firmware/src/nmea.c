@@ -218,10 +218,13 @@ int64_t nmea_to_unix(int year, int month, int day, int hour, int min, int sec)
 	return days_from_civil(year, month, day) * 86400LL + hour * 3600LL + min * 60LL + sec;
 }
 
-// "hhmmss" or "hhmmss.sss". the fractional part is dropped, the log's own timestamps are what
-// carries sub second resolution
-static int parse_time(const char *value, int *hour, int *min, int *sec)
+// "hhmmss" or "hhmmss.sss". the fraction is read to the millisecond and any further digits are
+// ignored; "hhmmss.1" is 100ms, not 1ms
+static int parse_time(const char *value, int *hour, int *min, int *sec, int *ms)
 {
+	int scale;
+	const char *p;
+
 	if (strlen(value) < 6) {
 		return 0;
 	}
@@ -229,6 +232,13 @@ static int parse_time(const char *value, int *hour, int *min, int *sec)
 	*hour = (value[0] - '0') * 10 + (value[1] - '0');
 	*min  = (value[2] - '0') * 10 + (value[3] - '0');
 	*sec  = (value[4] - '0') * 10 + (value[5] - '0');
+	*ms   = 0;
+
+	if (value[6] == '.') {
+		for (p = value + 7, scale = 100; scale > 0 && *p >= '0' && *p <= '9'; p++, scale /= 10) {
+			*ms += (*p - '0') * scale;
+		}
+	}
 
 	return (*hour >= 0 && *hour < 24 && *min >= 0 && *min < 60 && *sec >= 0 && *sec <= 60);
 }
@@ -312,7 +322,7 @@ static int parse_rmc(nmea_fix_t *fix, const char *sentence)
 {
 	char status[4], lat[16], ns[4], lon[16], ew[4], knots[16], timebuf[16], datebuf[16];
 	double latitude, longitude;
-	int hour, min, sec, year, month, day;
+	int hour, min, sec, ms, year, month, day;
 
 	if (nmea_field(sentence, 1, timebuf, sizeof(timebuf)) < 0 ||
 	    nmea_field(sentence, 2, status, sizeof(status)) < 0 ||
@@ -328,8 +338,9 @@ static int parse_rmc(nmea_fix_t *fix, const char *sentence)
 	// a 'V' sentence usually still carries a date, and it is worth having as a diagnostic: it is
 	// how "the receiver thinks it is 2080 and has no fix" becomes visible at all. it must not
 	// reach the wall clock or a file name, which is what time_from_fix below is for
-	if (parse_time(timebuf, &hour, &min, &sec) && parse_date(datebuf, &year, &month, &day)) {
+	if (parse_time(timebuf, &hour, &min, &sec, &ms) && parse_date(datebuf, &year, &month, &day)) {
 		fix->unix_time = nmea_to_unix(year, month, day, hour, min, sec);
+		fix->time_ms = ms;
 		fix->has_time = 1;
 	}
 

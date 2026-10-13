@@ -166,6 +166,18 @@ static void test_rmc(void)
 	check(fix.time_from_fix, "a fixed RMC's date is backed by a fix");
 	// 2026-03-23 12:35:19 UTC
 	check(fix.unix_time == 1774269319LL, "RMC unix time");
+	check(fix.time_ms == 0, "no fraction, no milliseconds");
+
+	// a 10Hz receiver sends the fraction, and the wall clock has to keep it
+	nmea_init(&fix);
+	check(nmea_parse(&fix, "$GNRMC,123519.300,A,3540.8724,N,13946.0261,E,022.4,084.4,230326,,,A*73")
+		== NMEA_RESULT_RMC, "RMC with milliseconds");
+	check(fix.unix_time == 1774269319LL && fix.time_ms == 300, "123519.300 is :19 and 300ms");
+
+	nmea_init(&fix);
+	check(nmea_parse(&fix, "$GNRMC,123519.05,A,3540.8724,N,13946.0261,E,022.4,084.4,230326,,,A*45")
+		== NMEA_RESULT_RMC, "RMC with two fraction digits");
+	check(fix.time_ms == 50, "123519.05 is 50ms, not 5");
 
 	nmea_init(&fix);
 	check(nmea_parse(&fix, "$GPRMC,123519,V,,,,,,,230326,,,N*58") == NMEA_RESULT_RMC,
@@ -696,6 +708,29 @@ static void test_wallclock(void)
 	wallclock_set_tz(-8 * 3600);
 	check(wallclock_local(1000000, &tm), "UTC-8");
 	check(tm.day == 3 && tm.hour == 21 && tm.minute == 59, "previous day in UTC-8");
+
+	// sync: anchors an unset clock, then leaves it alone while the fixes agree with it
+	printf("wall clock sync\n");
+	wallclock_init();
+	wallclock_set_tz(0);
+	check(wallclock_sync(1788501557LL, 2000000), "an unset clock is anchored");
+	check(wallclock_local(2000000, &tm) && tm.second == 17 && tm.millisecond == 0, "at :17.000");
+
+	// the next second's fix arrives 7ms late, the sort of wobble a sentence has
+	check(!wallclock_sync(1788501558LL, 3007000), "7ms of wobble does not re-anchor");
+	check(wallclock_local(3007000, &tm) && tm.second == 18 && tm.millisecond == 7,
+		"so the clock keeps running from the first anchor");
+
+	// and early by as much: still left alone, so the log never steps backwards
+	check(!wallclock_sync(1788501559LL, 3993000), "7ms early does not re-anchor either");
+
+	// drifted past the tolerance: re-anchored
+	check(wallclock_sync(1788501600LL, 45100000), "100ms of drift re-anchors");
+	check(wallclock_local(45100000, &tm) && tm.minute == 0 && tm.second == 0 &&
+		tm.millisecond == 0, "and the clock follows the fix");
+
+	// a different second altogether, as after a long gap or a bad first fix, re-anchors at once
+	check(wallclock_sync(1788509999LL, 46000000), "a clock seconds out is re-anchored");
 }
 
 // ---------------------------------------------------------------------------

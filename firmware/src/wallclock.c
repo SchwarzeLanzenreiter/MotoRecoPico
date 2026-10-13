@@ -53,6 +53,24 @@ void wallclock_set(int64_t unix_utc, uint64_t monotonic_us)
 	g_valid = true;
 }
 
+bool wallclock_sync(int64_t unix_utc, uint64_t monotonic_us)
+{
+	if (g_valid) {
+		// where the running clock puts monotonic_us, against where the fix puts it
+		int64_t error_us = (g_anchor_unix - unix_utc) * 1000000LL +
+		                   ((int64_t)monotonic_us - (int64_t)g_anchor_us);
+
+		if (error_us >= -(int64_t)WALLCLOCK_RESYNC_MS * 1000LL &&
+		    error_us <= (int64_t)WALLCLOCK_RESYNC_MS * 1000LL) {
+			return false;
+		}
+	}
+
+	wallclock_set(unix_utc, monotonic_us);
+
+	return true;
+}
+
 bool wallclock_valid(void)
 {
 	return g_valid;
@@ -125,8 +143,8 @@ bool wallclock_local(uint64_t monotonic_us, wallclock_tm_t *out)
 
 	wallclock_break_down(g_anchor_unix + secs + g_tz_offset_sec, out);
 
-	// the anchor comes from an RMC sentence, which carries whole seconds, so the fraction is
-	// measured from it rather than invented. good enough to order two events inside one second
+	// the anchor is the monotonic time of a whole UTC second (see wallclock_sync's caller), so the
+	// fraction is measured from it rather than invented
 	out->millisecond = (int)(frac_us / 1000);
 
 	return true;

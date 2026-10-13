@@ -83,6 +83,10 @@ typedef struct {
 							// 2080-01-06 in a void RMC, and a trip named from that is named
 							// wrong for good, so has_time alone is a diagnostic and nothing more
 	int64_t	unix_time;		// seconds since the epoch, UTC
+	int		time_ms;		// and the fraction RMC gave with it ("hhmmss.sss"). 0 when it gave none.
+							// at 10Hz the fixes are .000, .100 ... .900 of the same second, and
+							// anchoring each of them as .000 is what set the debug log's clock
+							// back by up to 0.9s inside every second
 
 	// everything below is diagnostics only. none of it reaches the .dat file, it exists to answer
 	// "why is there still no fix": a receiver that sees no satellites at all is a different

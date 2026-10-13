@@ -270,6 +270,10 @@
 #define DEFAULT_TZ_TEXT		"+9"		// JST
 #define DEFAULT_TZ_OFFSET_SEC	(9 * 3600)	// must match DEFAULT_TZ_TEXT
 
+// how far the wall clock may disagree with a fix before it is re-anchored. well above the few ms
+// a sentence's arrival wobbles by, well below anything a file name or a log line would notice
+#define WALLCLOCK_RESYNC_MS	50
+
 
 // receive ring between the CAN interrupt and the main loop. 4096 records is 64KB of the 520KB
 // SRAM and covers about 2 seconds of a saturated 500kbps bus, which is far longer than any single

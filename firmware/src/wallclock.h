@@ -57,8 +57,15 @@ void wallclock_init(void);
 void wallclock_set_tz(int offset_sec);
 int wallclock_tz(void);
 
-// anchors UTC seconds to a monotonic timestamp. safe to call on every fix
+// anchors UTC seconds to a monotonic timestamp
 void wallclock_set(int64_t unix_utc, uint64_t monotonic_us);
+
+// the one to call on every fix: anchors an unset clock, but leaves a running one alone unless it
+// disagrees with the fix by more than WALLCLOCK_RESYNC_MS. a fix's arrival time wobbles by a few
+// milliseconds, and re-anchoring on each one would step the debug log's clock back and forth by
+// that much. the pico's crystal drifts far slower than the tolerance, so the occasional re-anchor
+// is all it needs. returns true when it re-anchored
+bool wallclock_sync(int64_t unix_utc, uint64_t monotonic_us);
 
 bool wallclock_valid(void);
 
