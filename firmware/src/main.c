@@ -505,18 +505,48 @@ static bool handle_can_frames(void)
 // GPS
 // ---------------------------------------------------------------------------
 
+// hdop in tenths, for printing it as two integers instead of with %.1f.
+//
+// the SDK's printf cannot be trusted with this particular number. pico_printf's _ftoa() rounds
+// the scaled fraction, and when that fraction lands exactly on .5 it takes a branch that
+// increments without the "frac >= pow10[prec]" rollover guard the neighbouring branch has. frac
+// then equals 10, the fractional loop runs one pass too many, its unsigned counter wraps to
+// UINT_MAX, and the "add extra 0s" loop fills the whole 32 byte buffer. the decimal point and
+// the integer part are never written at all.
+//
+// a real ride produced "hdop:00000000000000000000000000000010" four times, on lines that were
+// otherwise perfect and reported excellent fixes. the trigger is an hdop of exactly 0.95 or
+// 1.95 -- ordinary values for a good fix, and the only two in 0..100 where the double arithmetic
+// lands precisely on the half. the Hz figures elsewhere are derived from the fix interval and
+// none of the reachable values can land there, so they keep using %.1f
+static int hdop_tenths(double hdop)
+{
+	if (hdop < 0.0) {
+		return 0;
+	}
+
+	// the receiver tops out at 99.99, but a mangled sentence must not be able to print
+	// something that reads like a plausible number
+	if (hdop > 999.0) {
+		return 9999;
+	}
+
+	return (int)(hdop * 10.0 + 0.5);
+}
+
 // one line describing what the receiver currently sees. used for the periodic search report, the
 // moment a fix appears, and the moment one is lost
 static void log_gps_state(const char *what, uint64_t now_us)
 {
 	uint32_t elapsed_s = (uint32_t)((now_us - g_gps_search_start_us) / 1000000ULL);
+	int hdop10 = hdop_tenths(g_fix.hdop);
 
 	logger_debug("gps %s after %us: quality:%d mode:%dD sats used:%d view:%d tracked:%d "
-		"best snr:%d hdop:%.1f sentences:%u bad:%u",
+		"best snr:%d hdop:%d.%d sentences:%u bad:%u",
 		what, (unsigned int)elapsed_s,
 		g_fix.quality, g_fix.fix_mode, g_fix.sats_used,
 		nmea_sats_in_view(&g_fix), nmea_sats_tracked(&g_fix), nmea_best_snr(&g_fix),
-		(double)g_fix.hdop,
+		hdop10 / 10, hdop10 % 10,
 		(unsigned int)g_gps_sentences, (unsigned int)g_gps_bad);
 }
 
@@ -1584,14 +1614,15 @@ int main(void)
 			// timestamp. expected to stay at or near 0 now that CAN and GPS are merged in time
 			// order; a number that climbs means the merge is letting records through out of order
 			logger_debug("status: rx:%u records:%u clamped:%u stalls:%u longest:%ums ig:%dmV(%s) "
-				"| gps fix:%d mode:%dD sats used:%d view:%d snr:%d hdop:%.1f sentences:%u bad:%u "
-				"uart_lost:%u",
+				"| gps fix:%d mode:%dD sats used:%d view:%d snr:%d hdop:%d.%d sentences:%u "
+				"bad:%u uart_lost:%u",
 				(unsigned int)mcp25625_rx_count(), (unsigned int)logger_records_written(),
 				(unsigned int)g_clamped_records,
 				(unsigned int)g_stall_count, (unsigned int)g_stall_max_ms,
 				g_ig_mv, g_power.off ? "off" : "on",
 				g_fix.has_fix, g_fix.fix_mode, g_fix.sats_used,
-				nmea_sats_in_view(&g_fix), nmea_best_snr(&g_fix), (double)g_fix.hdop,
+				nmea_sats_in_view(&g_fix), nmea_best_snr(&g_fix),
+				hdop_tenths(g_fix.hdop) / 10, hdop_tenths(g_fix.hdop) % 10,
 				(unsigned int)g_gps_sentences, (unsigned int)g_gps_bad,
 				(unsigned int)g_gps_drops);
 		}
