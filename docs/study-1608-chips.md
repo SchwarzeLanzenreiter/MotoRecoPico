@@ -1,126 +1,127 @@
-# 検討: チップ部品を 1005 → 1608 にした場合
+# Study: moving the chip components from 1005 to 1608
 
-> **2026-07-31 採用済み。** 本書は判断の根拠を残すための記録。
-> 現行設計はチップ21点すべてが 1608。`mrp_design.py` の既定が `CHIP='1608'`。
+> **Adopted on 2026-07-31.** This document exists to record the reasoning behind the decision.
+> The current design has all 21 chips at 1608. The default in `mrp_design.py` is `CHIP='1608'`.
 
-現行設計は 20点のチップ（抵抗13・コンデンサ7）を **1005（0402インチ）**で実装している。
-これを **1608（0603インチ）**にしたときに成立するかを、実際にパイプラインを回して確認した。
+The design at the time mounted its 20 chips (13 resistors, 7 capacitors) as **1005 (0402 inch)**.
+Whether **1608 (0603 inch)** would still work was checked by actually running the pipeline.
 
-**結論: 成立する。** 板サイズ 21×61mm のまま、全数配置・全数配線・DRC違反0・未接続0。
-デカップリング距離はむしろ短くなる。
+**Conclusion: it works.** The board stays 21 × 61 mm, with everything placed, everything routed,
+zero DRC violations and zero unconnected. The decoupling distances actually get shorter.
 
-## 実測比較
+## Measured comparison
 
-| 項目 | 1005（現行） | **1608** |
+| Item | 1005 (then current) | **1608** |
 |---|---|---|
-| チップ点数 | 20 | 20 |
-| 1点あたりキープアウト | 1.91 × 0.99 mm | 3.01 × 1.51 mm |
-| 合計占有面積 | 37.8 mm² | **91.0 mm²**（+53.2） |
-| 板サイズ | 21 × 61 mm | **21 × 61 mm**（変更なし） |
-| 全数配置 | ○ | **○** |
-| 未配線 | 0 | **0**（1回目で成立） |
-| DRC 違反 / 未接続 | 0 / 0 | **0 / 0** |
-| In1.Cu GND プレーン | 1領域 100% | 1領域 100% |
-| 配線長 | 694 mm | 664 mm |
-| ビア | 233 | 248 |
-| ゾーンからのはみ出し | 2点 | 9点 |
+| Chip count | 20 | 20 |
+| Keepout per part | 1.91 × 0.99 mm | 3.01 × 1.51 mm |
+| Total occupied area | 37.8 mm² | **91.0 mm²** (+53.2) |
+| Board size | 21 × 61 mm | **21 × 61 mm** (unchanged) |
+| Everything placed | yes | **yes** |
+| Unrouted | 0 | **0** (on the first try) |
+| DRC violations / unconnected | 0 / 0 | **0 / 0** |
+| In1.Cu GND plane | 1 region, 100% | 1 region, 100% |
+| Routed length | 694 mm | 664 mm |
+| Vias | 233 | 248 |
+| Parts outside their zone | 2 | 9 |
 
-## デカップリング距離（パッド間、同一ネット）
+## Decoupling distances (pad to pad, same net)
 
-**面積が増えたのに、むしろ改善している。**
-自動配置がパックし直した結果で、1608 の系統的な優位ではないが、少なくとも悪化しない。
+**Even though the area went up, this got better.** That is a result of the auto-placer repacking,
+not a systematic advantage of 1608 — but at the very least it does not get worse.
 
-| コンデンサ | 用途 | 1005 | **1608** |
+| Capacitor | Purpose | 1005 | **1608** |
 |---|---|---|---|
 | C3 | MCP25625 VIO | 8.88 mm | 8.69 mm |
 | C4 | MCP25625 VDD | 5.80 mm | 4.45 mm |
 | C5 | MCP25625 VDDA | 11.68 mm | **5.66 mm** |
-| C6 | VDDA バルク（裏面） | 11.52 mm | 11.52 mm |
+| C6 | VDDA bulk (back side) | 11.52 mm | 11.52 mm |
 | C10 | microSD VDD | 8.18 mm | 6.50 mm |
-| C11 | microSD バルク（裏面） | 4.55 mm | 4.55 mm |
-| C7 | 水晶負荷（裏面 Y1） | 11.40 mm | 11.12 mm |
-| C8 | 水晶負荷（裏面 Y1） | 9.90 mm | 8.96 mm |
-| C12 | ADC フィルタ | 20.37 mm | **14.52 mm** |
-| C2 | V12P バイパス | 8.74 mm | 8.74 mm |
-| **合計** | | **101.01 mm** | **84.72 mm** |
+| C11 | microSD bulk (back side) | 4.55 mm | 4.55 mm |
+| C7 | crystal load (Y1, back side) | 11.40 mm | 11.12 mm |
+| C8 | crystal load (Y1, back side) | 9.90 mm | 8.96 mm |
+| C12 | ADC filter | 20.37 mm | **14.52 mm** |
+| C2 | V12P bypass | 8.74 mm | 8.74 mm |
+| **Total** | | **101.01 mm** | **84.72 mm** |
 
-なお「ゾーンからのはみ出し」は 2点 → 9点に増えるが、
-これは自動配置が定義した矩形からどれだけ離れたかという内部指標にすぎず、
-実際の電気的な距離は上表のとおり改善している。**この指標は誤解を招くため判断に使わないこと。**
+The "parts outside their zone" figure does go from 2 to 9, but that is merely an internal metric for
+how far a part strayed from the rectangle the auto-placer defined; the actual electrical distances
+improve as the table above shows. **That metric is misleading and should not be used to decide
+anything.**
 
-## JLCPCB 部品区分への影響
+## Effect on JLCPCB part categories
 
-**1608 化すると Basic 部品の状況が良くなる。**
+**Moving to 1608 improves the Basic-part situation.**
 
-| 値 | 1005 の Basic | 1608 の Basic |
+| Value | Basic at 1005 | Basic at 1608 |
 |---|---|---|
-| 100kΩ | C25741 | C25803 |
-| 22kΩ | C25768 | C31850 |
-| 10kΩ | C25744 | C25804 |
-| 120Ω | C25079 | C22787 |
-| 1kΩ | C11702 | C21190 |
-| 22pF | C1555（50V） | C1653（50V） |
-| **100nF** | C1525（**16V のみ**） | C14663（**50V**） |
+| 100 kΩ | C25741 | C25803 |
+| 22 kΩ | C25768 | C31850 |
+| 10 kΩ | C25744 | C25804 |
+| 120 Ω | C25079 | C22787 |
+| 1 kΩ | C11702 | C21190 |
+| 22 pF | C1555 (50 V) | C1653 (50 V) |
+| **100 nF** | C1525 (**16 V only**) | C14663 (**50 V**) |
 
-全値が 1608 でも Basic にある。しかも **100nF が 50V になる**ため、
-C2 のためだけに 1608 へ上げた例外処理（`mrp_design.py` の `PKG_OVERRIDE`）が不要になる。
+Every value is available as Basic at 1608 too. And because **100 nF becomes 50 V**, the special case
+of raising C2 alone to 1608 (`PKG_OVERRIDE` in `mrp_design.py`) is no longer needed.
 
-## 手実装のしやすさ
+## Ease of hand assembly
 
-1608 は 1.6 × 0.8mm、1005 は 1.0 × 0.5mm。面積で 2.4倍、辺長で 1.6倍。
-**手はんだ・リワークの容易さは大きく違う。** JLCPCB に実装を任せる前提なら差は無いが、
-自分で直す可能性を考えるなら 1608 が有利。
+1608 is 1.6 × 0.8 mm, 1005 is 1.0 × 0.5 mm — 2.4× the area and 1.6× the edge length.
+**That is a large difference in how easy hand soldering and rework are.** If JLCPCB does the
+assembly it makes no difference, but if there is any chance of fixing it yourself, 1608 wins.
 
-## 実施する場合の手順
+## How to do it
 
-`mrp_design.py` に環境変数のスイッチを入れてある。
+`mrp_design.py` has an environment-variable switch for this.
 
 ```
-MRP_CHIP=1608  →  R_0603_1608Metric / C_0603_1608Metric（既定）
-MRP_CHIP=1005  →  R_0402_1005Metric / C_0402_1005Metric（比較用）
+MRP_CHIP=1608  ->  R_0603_1608Metric / C_0603_1608Metric (default)
+MRP_CHIP=1005  ->  R_0402_1005Metric / C_0402_1005Metric (for comparison)
 ```
 
-**実施済みの付随変更**
+**Accompanying changes, already made**
 
-- `mrp_design.py` の C2 用 `PKG_OVERRIDE` は `CHIP=='1005'` のときだけ効くようにした
-  （1608 なら全 100nF が 50V なので不要）
-- `netlist.md` §1.3 / §1.4 / §4.5、`hardware-design.md` の記述を 1608 に更新
-- `mrp_brd.py` の `eagle_pkg(r) == 'C1005'` は **EAGLE 側のパッケージ名**なのでそのまま。
-  1608 に変わるのは KiCad フットプリントだけで、「チップは全数表面」の検査は生きている
+- `PKG_OVERRIDE` for C2 in `mrp_design.py` now only takes effect when `CHIP=='1005'`
+  (at 1608 every 100 nF is 50 V, so it is unnecessary)
+- The text of `netlist.md` §1.3 / §1.4 / §4.5 and of `hardware-design.md` was updated to 1608
+- `eagle_pkg(r) == 'C1005'` in `mrp_brd.py` refers to **the package name on the EAGLE side** and
+  stays as it is. Only the KiCad footprint changes to 1608, so the "all chips on the front" check
+  still works
 
-## 採用後の実測値（1608 の最終盤面）
+## Measured values after adoption (the final 1608 board)
 
-| 項目 | 値 |
+| Item | Value |
 |---|---|
-| 未配線 | 0（1回目で成立）|
-| DRC 違反 / 未接続 | 0 / 0 |
-| 配線 | 329トラック / ビア251本（うち GND 207本）|
-| 層別配線長 | F.Cu 232 / In1 158 / In2 108 / B.Cu 170 mm |
-| In1.Cu GND プレーン | 1領域が100%（992.3mm² / 次点 3.0mm²）|
-| 浮き銅片 | 0（全6領域） |
-| 回路図とのネット一致 | 38/38 |
-| 電源チェーン長 | 13.81mm（変化なし）|
+| Unrouted | 0 (on the first try) |
+| DRC violations / unconnected | 0 / 0 |
+| Routing | 329 tracks / 251 vias (207 of them GND) |
+| Routed length per layer | F.Cu 232 / In1 158 / In2 108 / B.Cu 170 mm |
+| In1.Cu GND plane | 1 region covering 100% (992.3 mm²; the runner-up is 3.0 mm²) |
+| Floating copper | 0 (all 6 regions) |
+| Net agreement with the schematic | 38/38 |
+| Power chain length | 13.81 mm (unchanged) |
 
 ---
 
-## 検討中に判明した問題: 配線結果が再現しない
+## A problem discovered during the study: the routing result is not reproducible
 
-`mrp_brd.py` で基板を作り直すと、**ネット内のピンの並び順が変わる**。
-KiCad の DSN 出力はパッドの内部順序をそのまま書き出しており、
-その順序は毎回生成し直される UUID に依存するため。
+Rebuilding the board with `mrp_brd.py` **changes the order of the pins within a net**. KiCad's DSN
+export writes out the internal order of the pads as-is, and that order depends on the UUIDs, which
+are regenerated every time.
 
-同一の配置（38点すべて座標・回転・面が一致することを確認済み）から作った
-2つの DSN はサイズこそ同じ 58,074 バイトだが、24行が異なり、その中身は
-`(pins U3-19 R13-1 J2-9)` のようなピンの並びだけだった。
+Two DSN files produced from an identical placement (verified: all 38 parts matching in coordinates,
+rotation and side) were the same size, 58,074 bytes, but 24 lines differed — and what differed was
+only the pin ordering, such as `(pins U3-19 R13-1 J2-9)`.
 
-**この違いで Freerouting の結果が変わる。** 検証済みの盤面は1回目で未配線0だったが、
-同じ配置を作り直したものは4回連続で SD_CS が2本残った。
+**That difference changes Freerouting's result.** The verified board had zero unrouted on the first
+try, but a rebuild of the same placement left SD_CS unrouted twice, four runs in a row.
 
-対策として、**配線済みの基板ファイルそのものを成果物として保持すること**。
-`mrp_brd.py` から作り直せば同じ結果になる、と考えてはいけない。
-今回の検討でも一度上書きしてしまい、バックアップ
-（`MotoRecoPico_backup_20260731-1400`）から復旧している。
+The countermeasure is to **keep the routed board file itself as the deliverable**. Do not assume that
+rebuilding from `mrp_brd.py` will give the same result. Even during this study it was overwritten
+once and had to be recovered from a backup (`MotoRecoPico_backup_20260731-1400`).
 
 ---
 
-*2026-07-31 実測。現行の出荷データは 1005 のまま変更していない。*
+*Measured 2026-07-31. The shipping data in use at the time was left at 1005.*

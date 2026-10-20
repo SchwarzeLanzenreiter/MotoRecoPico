@@ -1,283 +1,313 @@
-﻿# MotoRecoPico ハードウェア設計仕様
+﻿# MotoRecoPico hardware design specification
 
-Raspberry Pi Pico 2 ベース CAN ロガー（二輪車搭載）
+A Raspberry Pi Pico 2 based CAN logger, carried on a motorcycle.
 
-- 対象: 車両12V電源のみ、MQS 8極コネクタ直結、MicroSD 基板実装
-- 基板: 4層、21 × 61 mm。チップ部品は 1608（JLCPCB 実装）
+- Scope: vehicle 12V supply only, direct MQS 8-way connector, MicroSD mounted on the board
+- Board: 4 layers, 21 × 61 mm. Chip components are 1608 (assembled by JLCPCB)
 
-> **回路の詳細（部品表・ネットリスト・電源アーキテクチャ・ピン割当）は
-> [netlist.md](netlist.md) が正典。** 本書はコネクタ／フットプリントの一次資料からの
-> 導出根拠と基板レイアウトのみを扱う。
+> **The details of the circuit (bill of materials, netlist, power architecture, pin assignment) are
+> defined canonically in [netlist.md](netlist.md).** This document covers only the derivations from
+> the primary connector and footprint sources, plus the board layout.
 >
-> 旧版にあった LM2596 / GPS用LDO / ラッチング電源 / 赤LED / GPSスルーホールの
-> 記述は設計変更により無効。削除済み。
+> The descriptions of the LM2596, the GPS LDO, the latching supply, the red LED and the GPS
+> through-holes that appeared in older revisions have been invalidated by design changes and
+> removed.
 
 ---
 
-## 1. 部品構成（確定分）
+## 1. Component selection (settled)
 
-| 部品 | 型番 | パッケージ | 備考 |
+| Part | Type number | Package | Notes |
 |---|---|---|---|
-| MCU | Raspberry Pi Pico 2 (RP2350) | 2×20 2.54mm ヘッダ | ソケット実装で交換可能に |
-| CAN | MCP25625T-E/SS | SSOP-28 (0.65mm) | コントローラ＋トランシーバ一体 |
-| GPS | GT-502MGG-N | 外付け（1.5m 先バラ5線） | 片面 SMD パッドに直付け |
-| 保存 | Hirose DM3AT-SF-PEJM5 | SMD ライトアングル | プッシュプッシュ式、カード検出付 |
-| 車両I/F | TE 1-967658-1 | MQS .63 8極 2列 4mm ライトアングル TH | 車両カプラー直結 |
-| 降圧 | **Diodes AP63205WU-7**（v4） | TSOT-26 + L/C 4点 | 3.8〜32V入力 / 5V固定 2A 同期整流。最背は L1 の 3mm |
-| 高側スイッチ | **Diodes ZXMP6A17E6Q** | SOT-26 | −60V / −3A / AEC-Q101 |
+| MCU | Raspberry Pi Pico 2 (RP2350) | 2×20 2.54 mm header | Socketed so it can be replaced |
+| CAN | MCP25625T-E/SS | SSOP-28 (0.65 mm) | Controller and transceiver in one |
+| GPS | GT-502MGG-N | External (5 bare wires, 1.5 m) | Soldered directly to single-sided SMD pads |
+| Storage | Hirose DM3AT-SF-PEJM5 | SMD, right angle | Push-push, with card detect |
+| Vehicle I/F | TE 1-967658-1 | MQS .63, 8 way, 2 rows, 4 mm, right-angle TH | Mates with the vehicle connector |
+| Step-down | **Diodes AP63205WU-7** (v4) | TSOT-26 plus 4 L/C parts | 3.8–32 V in / 5 V fixed, 2 A, synchronous. The tallest part is L1 at 3 mm |
+| High-side switch | **Diodes ZXMP6A17E6Q** | SOT-26 | −60 V / −3 A / AEC-Q101 |
 
-### MQS コネクタ ピン割当（ユーザー指定）
+### MQS connector pin assignment (specified by the user)
 
-| ピン | 信号 |
+| Pin | Signal |
 |---|---|
-| 3 | IG ON 時 12V |
+| 3 | 12V when IG is on |
 | 4 | GND |
 | 5 | CAN Low |
 | 6 | CAN High |
-| 8 | 12V 常時 |
+| 8 | Permanent 12V |
 
-未使用: 1, 2, 7
+Unused: 1, 2, 7
 
-### MQS コネクタ フットプリント（図面 967658 Rev.C3 より確定）
+### MQS connector footprint (derived from drawing 967658 Rev.C3)
 
-原点はコネクタ前面基準線上の中心 ¢。+X は右、+Y は基板端（嵌合方向）。
-穴は基準線から Y マイナス方向（基板内側）へ。
+The origin is the center mark on the connector's front reference line. +X is to the right, +Y is
+toward the board edge (the mating direction). The holes go in the −Y direction from the reference
+line (into the board).
 
-| ピン | X [mm] | Y [mm] | 列 |
+| Pin | X [mm] | Y [mm] | Row |
 |---|---|---|---|
-| 1 | +7.0 | −3.76 | 前列（下段コンタクト） |
-| 2 | +3.0 | −3.76 | 前列 |
-| 3 | −1.0 | −3.76 | 前列 |
-| 4 | −5.0 | −3.76 | 前列 |
-| 5 | +5.0 | −6.30 | 後列（上段コンタクト） |
-| 6 | +1.0 | −6.30 | 後列 |
-| 7 | −3.0 | −6.30 | 後列 |
-| 8 | −7.0 | −6.30 | 後列 |
+| 1 | +7.0 | −3.76 | Front row (lower contacts) |
+| 2 | +3.0 | −3.76 | Front row |
+| 3 | −1.0 | −3.76 | Front row |
+| 4 | −5.0 | −3.76 | Front row |
+| 5 | +5.0 | −6.30 | Rear row (upper contacts) |
+| 6 | +1.0 | −6.30 | Rear row |
+| 7 | −3.0 | −6.30 | Rear row |
+| 8 | −7.0 | −6.30 | Rear row |
 
-| 項目 | 値 |
+| Item | Value |
 |---|---|
-| 穴径 | ⌀1.0mm 以上（8ヶ所）→ ドリル 1.1mm、パッド ⌀1.8mm 推奨 |
-| 列内ピッチ | 4.0 ±0.1mm |
-| 列間ピッチ | 2.54 ±0.1mm |
-| 列間の水平オフセット | 2.0mm（千鳥配置） |
-| 基準線→前列 | 3.76mm（= 6.3 − 2.54） |
-| 基準線→後列 | 6.30 −0.1mm |
-| ハウジング幅 | max 19.6mm |
-| ハウジング全高 | 18.1 ±0.15mm |
-| テール突出量 | 3 ±0.25mm |
-| 位置度公差 | ⌀0.3 (8ヶ所) |
+| Hole diameter | ⌀1.0 mm or more (8 places) → 1.1 mm drill, ⌀1.8 mm pad recommended |
+| Pitch within a row | 4.0 ±0.1 mm |
+| Pitch between rows | 2.54 ±0.1 mm |
+| Horizontal offset between rows | 2.0 mm (staggered) |
+| Reference line to front row | 3.76 mm (= 6.3 − 2.54) |
+| Reference line to rear row | 6.30 −0.1 mm |
+| Housing width | 19.6 mm max |
+| Housing overall height | 18.1 ±0.15 mm |
+| Tail protrusion | 3 ±0.25 mm |
+| Positional tolerance | ⌀0.3 (8 places) |
 
-**ピン番号の導出根拠**: 嵌合面視では下段が左から 1・2・3・4、上段が左から 5・6・7・8。
-断面図 G-M より、上段コンタクトのテールは嵌合面から遠い側（後列）、下段は近い側（前列）に降りる
-（上段テールの垂直部が下段コンタクトの水平部と干渉しないため、必然的にこうなる）。
-嵌合面視の左右は基板上面視と反転するため、上表の X 座標になる。
+**How the pin numbering was derived**: looking at the mating face, the lower row is 1·2·3·4 from the
+left and the upper row is 5·6·7·8 from the left. From cross-sections G-M, the tails of the upper
+contacts come down on the side away from the mating face (the rear row) and the lower ones on the
+near side (the front row) — necessarily so, since otherwise the vertical part of an upper tail would
+collide with the horizontal part of a lower contact. Left and right as seen from the mating face are
+mirrored relative to the top view of the board, which gives the X coordinates in the table above.
 
-材質: ハウジング PBT-GF20 (Ultradur B4300-G4) 黒 / コンタクト CuFe2 錫めっき
-相手側ハウジング: AMP 1534229（8極）　製品仕様書: 108-18568
+Materials: housing PBT-GF20 (Ultradur B4300-G4), black / contacts CuFe2, tin-plated.
+Mating housing: AMP 1534229 (8 way). Product specification: 108-18568.
 
-図面の注記 7 に「この領域は全周シール面（Ra 0.7µm）」とあり、
-**相手側ハウジングと組んだ状態ではシール構造を持つ**。当初「MQS は非防水」と記載したが誤りだった。
-ただしケース貫通部のシールは別途必要。
+Note 7 of the drawing says "this area is a full-perimeter sealing surface (Ra 0.7 µm)", so
+**it does have a sealing structure when mated with the matching housing**. The earlier statement
+that "MQS is not waterproof" was wrong. A separate seal is still needed where it passes through a
+case.
 
 ---
 
-## 6.1 基板レイアウト
+## 6.1 Board layout
 
-外形 **21 × 61 mm（12.8cm²）**、**4層**。設計データは `cad/kicad/` の KiCad 10 プロジェクト。
+Outline **21 × 61 mm (12.8 cm²)**, **4 layers**. The design data is the KiCad 10 project in
+`cad/kicad/`.
 
-| 面 | 部品 |
+| Side | Components |
 |---|---|
-| 表 | 26点。**J1（v4で移動）**、U2、J2、1608 チップ23点すべて。**v4.2 で Pico が裏面に移り、J1 以外は全て低背で露出** |
-| 裏（Pico側）| 15点。**U3(Pico ソケット、v4.2)**、Y1、J3、バック一式（U4/L1/C14-C16）と SOT/SOD/SMA（**1608 は無し**）。Pico の下の最背は 3mm |
+| Front | 26 parts. **J1 (moved in v4)**, U2, J2, and all 23 of the 1608 chips. **In v4.2 the Pico moved to the back, so everything except J1 is low-profile and exposed** |
+| Back (Pico side) | 15 parts. **U3 (the Pico socket, v4.2)**, Y1, J3, the buck set (U4/L1/C14-C16), and the SOT/SOD/SMA parts (**no 1608 chips**). The tallest part under the Pico is 3 mm |
 
-### 層構成
+### Stackup
 
-| 層 | 用途 | 実配線長 |
+| Layer | Use | Actual routed length |
 |---|---|---|
-| F.Cu | 信号 | 227mm |
-| In1.Cu | **GND プレーン** | 158mm |
-| In2.Cu | **3V3 プレーン** | 145mm |
-| B.Cu | 信号 | 196mm |
+| F.Cu | Signal | 227 mm |
+| In1.Cu | **GND plane** | 158 mm |
+| In2.Cu | **3V3 plane** | 145 mm |
+| B.Cu | Signal | 196 mm |
 
-**2層は二度試し、二度とも採らなかった。** v1 では 0.127mm（工程下限）を要したうえ
-GND ベタが8分断・7浮き。v2 で部品が3点減った際に再試行したが、配線は通っても
-**サーマルスポークが届かない GND パッドが 2〜6点残り**（5シード×ギャップ3種の全組合せ）、
-サーマル接続という v2 の目的と両立しなかった。4層は 0.15mm・スポーク全数到達で成立する。
-基板代は5枚で $2.10 → $7.10（+$5.00、送料込み総額で +17%）。
+**Two layers were tried twice, and rejected twice.** In v1 it needed 0.127 mm (the process minimum)
+and still left the GND pour split into 8 pieces with 7 islands. It was tried again in v2 when three
+components were removed; the routing completed, but **2 to 6 GND pads were left without a thermal
+spoke reaching them** (across all combinations of 5 seeds × 3 gap values), which was incompatible
+with thermal relief, the whole point of v2. Four layers works at 0.15 mm with every spoke reaching.
+The board cost goes from $2.10 to $7.10 for five pieces (+$5.00, or +17% on the total including
+shipping).
 
-**内層にも信号が乗っている。** ルータには内層をプレーンとして渡したが、
-Freerouting は必要に応じてその上も通す。
-それでも In1 の GND 銅箔は **1領域が全体の100%**（v4.2: 972.2mm²、分断ゼロ。In2 の 3V3 も 1 領域 881.1mm²）で、
-プレーンとしては分断されていない。この配線密度でしか 0.15mm 線幅が成立しないため、
-分断されない範囲での内層使用は許容している。
+**There is signal on the inner layers too.** The router was given the inner layers as planes, but
+Freerouting routes over them as needed. Even so the GND copper on In1 is **one region covering 100%
+of it** (v4.2: 972.2 mm², zero splits; the 3V3 on In2 is likewise one region of 881.1 mm²), so as a
+plane it is not divided. 0.15 mm traces only work at this routing density, so inner-layer use is
+tolerated as long as it does not split the plane.
 
-**外層のベタは配線後に流す。** 配線前に F.Cu / B.Cu へ GND を流し込むと、
-Freerouting が信号層を使いきれず未配線が残った。GND を運ぶのは内層プレーンなので、
-外層は配線が終わってからベタにしている。
+**The outer pours are filled after routing.** Filling GND into F.Cu / B.Cu before routing left
+Freerouting unable to use the signal layers fully, and nets remained unrouted. GND is carried by the
+inner planes, so the outer layers are only poured once routing is done.
 
-**1608 チップは全数（23点）を表面に集約**してある（v3。実装とリワークを片面に限定するため）。
-それより大きい部品は両面に分かれる。
+**All 23 of the 1608 chips are collected on the front side** (v3, so that assembly and rework are
+confined to one side). Anything larger than that is split across both sides.
 
-### 外形寸法が決まる理由
+### Why the outline dimensions are what they are
 
-**長さ61mm は幾何的な下限に近い。** MQS の穴は Pico のヘッダー穴列と X 方向で 1.89mm しか
-離れず、⌀1.8mm パッドでは隙間 0.09mm となり製造不可能。よって MQS はヘッダー格子の
-外側に自分の帯を必要とする。
+**The 61 mm length is close to the geometric minimum.** The MQS holes are only 1.89 mm away in X
+from the Pico's header hole columns, which with ⌀1.8 mm pads leaves a 0.09 mm gap — not
+manufacturable. So MQS needs a band of its own outside the header grid.
 
-MQS ハウジングは基板上に 8.0mm せり出す。ユーザー指定によりヘッダーとの隙間は
-**0.57mm** としてある。v4.2 で Pico ソケットが裏面に移ったため、MQS のテール（裏面ではんだ付け）と
-ソケット本体が同じ面で 0.1mm まで近づく。**MQS を先にはんだ付けし、ソケットを後から立てる組立順**が前提。
+The MQS housing overhangs the board by 8.0 mm. At the user's request the clearance to the header is
+**0.57 mm**. Since the Pico socket moved to the back in v4.2, the MQS tails (soldered on the back)
+and the socket body come within 0.1 mm of each other on the same side. **The assembly order —
+solder MQS first, then fit the socket — is a prerequisite.**
 
-**幅21mm は Pico のフットプリント幅そのもの。** ヘッダー穴列が x=1.61 / 19.39 にあるため、
-使える領域は列の間の 15.2mm しかない。側面発光LEDと GPS パッドは長辺に置けず、
-LED は短辺（y=61）へ、GPS パッドは裏面中央へ回した。
+**The 21 mm width is the Pico's footprint width itself.** The header hole columns are at x=1.61 and
+19.39, so the usable area is only the 15.2 mm between them. The side-view LED and the GPS pads
+cannot go on the long edges, so the LED went to a short edge (y=61) and the GPS pads to the middle of
+the back side.
 
-| 辺 | 実装 |
+| Edge | What is on it |
 |---|---|
-| 短辺 y=0 | J1（**表面**（v4）、嵌合口が基板外を向く。穴パターンは v3.1 の鏡像）|
-| 短辺 y=61 | J2 MicroSD（表面、挿抜口が基板端の内側約1mm）、D6 サイドビューLED（裏面）、**Pico の USB ポート（v4.1 で y=61 端へ、v4.2 で裏面側・ソケット高 +8.5mm の位置）** |
+| Short edge y=0 | J1 (**front side** as of v4, with the mating opening facing off the board. The hole pattern is the mirror of v3.1) |
+| Short edge y=61 | J2 MicroSD (front, with the slot about 1 mm inside the board edge), D6 side-view LED (back), **the Pico's USB port (moved to the y=61 edge in v4.1; on the back side at socket height +8.5 mm in v4.2)** |
 
-**LED・カードスロット・USB が同じ短辺に集まるため、ケースの開口はこの端面に集約できる。**
-y=0 端は MQS カプラのみ。
+**Because the LED, the card slot and USB are all on the same short edge, the case openings can all be
+on that one end face.** The y=0 end has only the MQS connector.
 
-**Pico は裏面に載せてある（v4.2）。** 面反転はフットプリントの x 鏡像なので穴は1つも動かず、
-ピン1〜20 の列が左（x=1.61）に、21〜40 が右に入れ替わるだけ。v4.1 の GPIO 割当は y 方向の
-近さで決めてあり鏡像で保たれるため、**再割当もファームウェア変更も無い**。狙いは表面を
-J1 以外すべて低背部品（U2・J2・1608 チップ）にして、Pico を外さずに実装・リワーク・
-プロービングできるようにすること。裏面の電源ポケット・Y1・J3 は Pico の下（ソケット高 8.5mm、
-部品最背 3mm）に入る。**J3 の GPS 配線は Pico を抜いてはんだ付けする。**
+**The Pico is mounted on the back side (v4.2).** Flipping sides mirrors the footprint in x, so not a
+single hole moves; the column of pins 1–20 just swaps to the left (x=1.61) and 21–40 to the right.
+The v4.1 GPIO assignment was chosen by proximity in y and is preserved under the mirror, so
+**there was no reassignment and no firmware change**. The aim is to have everything on the front
+except J1 be low-profile (U2, J2, the 1608 chips), so that assembly, rework and probing can be done
+without removing the Pico. The power pocket, Y1 and J3 on the back fit under the Pico (socket height
+8.5 mm, tallest part 3 mm). **The GPS wiring at J3 is soldered with the Pico removed.**
 
-**Pico は 180° 回転してある（v4.1）。** v4 で J1 が表面に来た結果、USB コネクタが
-18.1mm の MQS ハウジングの 0.6mm 隣を向き、ケーブルが物理的に挿せなかった。
-2×20 ヘッダー格子は 180° 回転対称なので**穴は 1 つも動かず**、各穴に入るピンが
-対角（k ↔ k+20）に入れ替わるだけ。GND ピン 8 本は対称位置どうしが共に GND のため
-バレルの役割も不変。ただし信号ピンの物理位置は全て裏返るため、
-**GPIO 割当は回転後の距離で再導出した**（SPI0↔SPI1 の役割交換が鍵。
-正規の表は netlist.md §3.7。ファームウェアのピン定義変更が必要）。
+**The Pico is rotated 180° (v4.1).** Once J1 came to the front in v4, the USB connector faced 0.6 mm
+away from the 18.1 mm MQS housing and the cable physically could not be plugged in. The 2×20 header
+grid is 180°-rotationally symmetric, so **not a single hole moved**; only which pin goes into which
+hole changed, swapping diagonally (k ↔ k+20). The 8 GND pins are GND at both symmetric positions, so
+their role as barrels is unchanged too. But the physical positions of all the signal pins flip, so
+**the GPIO assignment was re-derived from the post-rotation distances** (the key is the swap of
+SPI0 ↔ SPI1 roles; the authoritative table is netlist.md §3.7, and the firmware pin definitions had
+to change).
 
-### 配置で守った設計上の要件
+### Design requirements honored in the placement
 
-**U2 を 90° 回転してある。** 回転前は SSOP-28 の2列が長辺を向き、28ピンすべてが
-幅 3.1mm の側方通路へ脱出しようとしていた。物理的に通らない。
+**U2 is rotated 90°.** Before the rotation, the two rows of the SSOP-28 faced the long edges and all
+28 pins were trying to escape into a 3.1 mm wide side corridor. Physically impossible.
 
-**U2 のデカップリングは IC の左右（脱出領域の外）に置いた。** 上下に置くと
-28ピンの扇形展開を塞ぐ。チップは 90° 立てて側方の隙間に収めている。
+**U2's decoupling sits to the left and right of the IC, outside the escape area.** Putting it above
+and below would block the fan-out of 28 pins. The chips are stood on end at 90° to fit in the side
+gaps.
 
-**裏面の大物2点（Y1・J3）は 90° 回転して右側に縦積み。** 寝かせると幅12mm 前後で
-15.2mm の帯を横断し、裏面が分断されて縦方向に何も通らなくなる。
+**The two large parts on the back (Y1 and J3) are rotated 90° and stacked vertically on the right.**
+Laid flat they are about 12 mm wide and would cross the 15.2 mm band, splitting the back side so
+that nothing could pass vertically.
 
-**Y1（水晶）は裏面。** HC-49/S はスルーホール品なので、差し込む面＝本体が乗る面。
-v4.1 までは Pico が表面を占有するため裏面から挿していた。v4.2 で Pico も裏面に来たが、
-HC-49/S の高さ（3.5〜4.7mm）はソケット高 8.5mm の下に収まるのでそのまま。パッドは両面にあるのでビアは不要。
+**Y1 (the crystal) is on the back.** The HC-49/S is a through-hole part, so the side it is inserted
+from is the side the body sits on. Up to v4.1 the Pico occupied the front, so it was inserted from
+the back. In v4.2 the Pico moved to the back too, but the HC-49/S height (3.5–4.7 mm) fits under the
+8.5 mm socket height, so it stayed. It has pads on both sides, so no via is needed.
 
-**C7/C8（水晶負荷）は表面で Y1 の両バレルを挟む明示配置（v3）。**
-Y1 のスルーホールが XTAL ネットを表面へ運ぶため、コンデンサはビアなしでバレル直結できる。
-v2 では左端ゾーン任せで 11.1 / 9.0mm 離れ、XTAL1 が In1 プレーンの中を 8.5mm 通っていた。
-v4.2 実測: C7 2.24mm / C8 2.77mm、XTAL1 9.7mm（ビア0・内層0）/ XTAL2 14.6mm（ビア0・内層0）。
-ゾーン任せでは他ゾーンのスピルに枠を奪われるため EXPLICIT で固定してある。
-C8 の回転は 270°（90° だとピン1が遠い側を向く）。
+**C7/C8 (the crystal load capacitors) are explicitly placed on the front, flanking Y1's two barrels
+(v3).** Y1's through-holes carry the XTAL nets up to the front, so the capacitors can connect
+straight to the barrels without a via. In v2 they were left to the left-edge zone and ended up 11.1 /
+9.0 mm away, with XTAL1 running 8.5 mm inside the In1 plane. Measured in v4.2: C7 2.24 mm / C8
+2.77 mm, XTAL1 9.7 mm (0 vias, 0 inner layer) / XTAL2 14.6 mm (0 vias, 0 inner layer). Left to the
+zone, spill from other zones steals the slot, so they are pinned with EXPLICIT. C8's rotation is
+270° (at 90° its pin 1 would face the far side).
 
-**電源部品は電気の流れ順に一列。** J1 → F1 → D1 → Q2 → U4(バック) を、給電ピンの位置から
-素直につながる順序で裏面に並べてある。**v4 で J1 の面反転に伴い列全体を左右鏡像化**した
-（12V の入口が x17.5 → x3.5 に移ったため。左から右へ F1 → D1 → Q2、バックは直下）。
+**The power components are in a single row following the flow of current.** J1 → F1 → D1 → Q2 →
+U4 (buck), laid out on the back in the order that connects naturally from the position of the supply
+pins. **In v4 the whole row was mirrored left-right when J1 flipped sides** (the 12V entry moved from
+x17.5 to x3.5, so it goes F1 → D1 → Q2 from left to right, with the buck directly below).
 
-| 区間 | ピン間距離 |
+| Segment | Pin-to-pin distance |
 |---|---|
-| V12_RAW（J1.8 → F1.1）| 3.47mm |
-| V12_FUSED（F1.2 → D1.2）| 1.85mm |
-| V12P（D1.1 → Q2.4）| 3.40mm（v4.2、Q2 立て置き）|
-| V12_SW（Q2 → U4.VIN）| 6.40mm |
-| **合計** | **15.12mm**（v4.2。v4 は 14.83mm）|
-| SW ノード（U4.SW → L1）| 3.99mm（v4.2、L1 回転。v4 は 2.09mm）|
-| 入力コンデンサ（U4.VIN ↔ C14）| 2.90mm |
-| 出力コンデンサ（L1 ↔ C15）| 3.07mm |
-| ブートストラップ（U4.BST ↔ C16）| 4.03mm |
+| V12_RAW (J1.8 → F1.1) | 3.47 mm |
+| V12_FUSED (F1.2 → D1.2) | 1.85 mm |
+| V12P (D1.1 → Q2.4) | 3.40 mm (v4.2, with Q2 stood on end) |
+| V12_SW (Q2 → U4.VIN) | 6.40 mm |
+| **Total** | **15.12 mm** (v4.2; v4 was 14.83 mm) |
+| SW node (U4.SW → L1) | 3.99 mm (v4.2, L1 rotated; v4 was 2.09 mm) |
+| Input capacitor (U4.VIN ↔ C14) | 2.90 mm |
+| Output capacitor (L1 ↔ C15) | 3.07 mm |
+| Bootstrap (U4.BST ↔ C16) | 4.03 mm |
 
-見直し前は同じ経路が **36.1mm** あった。12V が J1 の右端（x=17.5）から入るのに
-F1 が 17mm 下の中央にあり、そこから左端 → 上 → 右へ戻る「コの字」を描いていた
-（第1区間だけで 17.4mm）。DC 100mA 程度なので機能上の問題ではないが、
-入力側の電流ループを締めるのと、レイアウトを追える状態にしておくために直した。
+Before the review the same path was **36.1 mm**. The 12V came in at J1's right edge (x=17.5) but F1
+was 17 mm below in the middle, from where the path drew a U-shape to the left edge, up, and back to
+the right (17.4 mm in the first segment alone). At about 100 mA DC this is not a functional problem,
+but it was fixed to tighten the input current loop and to keep the layout legible.
 
-**Q2 は U4 と同じ手はんだ用ランドで 90° 立てて配置（v4.2）。** v4.1 の標準 SOT-23-6 ランドは
-パッドが短く、実基板でゲートリードの未はんだが起きた。2.0×0.65mm パッドにすると幅 6mm になり
-F1/D1 の列に入らないため、右列に立てて S/G を D1 側、ドレインを基板端側に向けてある。
-パッド番号は JEDEC 順のままなので、G=3 / S=4 のビルド毎 assert はそのまま効いている。
+**Q2 is placed on the same hand-soldering land as U4, stood on end at 90° (v4.2).** The standard
+SOT-23-6 land of v4.1 had short pads and an unsoldered gate lead actually happened on a physical
+board. Making the pads 2.0×0.65 mm takes the width to 6 mm, which does not fit in the F1/D1 row, so
+it is stood up in the right-hand column with S/G facing the D1 side and the drain facing the board
+edge. The pad numbering remains in JEDEC order, so the per-build assertion of G=3 / S=4 still holds.
 
-**L1 はパッドを外側へ 1mm 延長した自作ランドで 90° 回転（v4.2）。** 標準ランドは 4×4 本体の外に
-こて先を置く銅箔がなく、U4 の SW パッドとも近接していた。延長ランド（`L_4030_HandSolder`）を
-±y 向きに置き、SW 側パッドを U4 の SW 列の横（4.0mm）、V5 側を直下の C15（3.1mm）に繋いでいる。
+**L1 uses a custom land with pads extended 1 mm outwards, rotated 90° (v4.2).** The standard land has
+no copper outside the 4×4 body for an iron tip to rest on, and it was also close to U4's SW pad. The
+extended land (`L_4030_HandSolder`) is placed facing ±y, with the SW-side pad next to U4's SW column
+(4.0 mm) and the V5 side connected to C15 directly below (3.1 mm).
 
-**裏面左端の電源スタックは Pico 左列パッドから 2.5mm 離してある（v4.2）。** 面反転で CAN の
-SPI 4 本が左列から出て U2 上段右端の SPI ピンへ向かうため、左端に 1.3mm しか残さない詰め方では
-CAN_MISO が 20 シード中 19 で未配線になった。L1 左端 x4.9、D2/Q1/D3 左端 x4.0 に寄せている。
+**The power stack at the left edge of the back side is kept 2.5 mm away from the Pico's left pad
+column (v4.2).** With the side flip, CAN's four SPI lines come out of the left column and head for
+the SPI pins at the right end of U2's upper row, so with the earlier packing that left only 1.3 mm at
+the left edge, CAN_MISO was unrouted in 19 out of 20 seeds. L1's left edge is now at x4.9, and
+D2/Q1/D3's at x4.0.
 
-**バック一式（U4・L1・C14〜C16）は U1 が空けた裏面ポケット（y13〜21）に収めた（v4）。**
-v4 では U4 と L1 を SW パッド同士が向き合う回転で明示配置した（逆向きだと SW ノードが 8.5mm に伸びる）。
-C14（入力 10µF/50V）は U4 の VIN 列の右隣 — 初回は U4 の手はんだ用コートヤード内に
-置いてしまい DRC が短絡を検出したため、ブロック全体を 2.4mm 左に詰めて確保した。
-v4.2 では Q2 の立て置きと L1 の回転に合わせて、U4 を 1mm 下げ、C14 を Q2 の下、C16 を U4 の下、
-C15 を L1 の V5 パッド直下に組み替えてある（いずれも `mrp_brd.py` の EXPLICIT で固定）。
+**The buck set (U4, L1, C14–C16) sits in the pocket on the back that U1 vacated (y13–21), as of
+v4.** In v4, U4 and L1 were explicitly placed in a rotation that puts their SW pads facing each
+other (the other way round stretches the SW node to 8.5 mm). C14 (the 10 µF/50 V input) is just to
+the right of U4's VIN column — the first attempt put it inside U4's hand-soldering courtyard and DRC
+flagged a short, so the whole block was pulled 2.4 mm to the left to make room. In v4.2, to go with
+Q2 standing on end and L1 rotating, U4 moved 1 mm down, C14 went under Q2, C16 under U4, and C15
+directly below L1's V5 pad (all pinned with EXPLICIT in `mrp_brd.py`).
 
-**C2 は右フランクに単独の枠を持つ。** チップがまだ 1005 だった頃、耐圧の都合で
-C2 だけを 1608 に上げた。すると自動配置が面積の大きい順に詰めるため C2 が分圧抵抗の
-ゾーンの左端を取り、**R1〜R4 が 2.75mm 右へずれた**。それだけで SD_CD が J2 の脇を
-抜ける通路を失い、どのルータ設定でも1本残った（`-oit` と `-mp` を6通り試して全て1本）。
-C2 に専用枠を与えて分圧抵抗の列を元に戻したところ、1回目で未配線0になった。
+**C2 has a zone of its own on the right flank.** Back when the chips were still 1005, C2 alone was
+raised to 1608 for voltage rating reasons. The auto-placer packs by descending area, so C2 then took
+the left end of the voltage-divider resistors' zone and **pushed R1–R4 2.75 mm to the right**. That
+alone cost SD_CD its corridor past J2, and one net stayed unrouted under every router setting
+(6 combinations of `-oit` and `-mp`, all with one left). Giving C2 a dedicated zone and putting the
+divider row back where it was produced zero unrouted nets on the first try.
 
-その後チップは全数 1608 になり C2 は特別な大きさではなくなったが、
-**この枠は検証済みの配置なので残してある**。
+The chips later all became 1608 and C2 is no longer a special size, but **the zone is kept because it
+is a verified placement**.
 
-**R8（CAN 終端 120Ω）は U2 の南側、CANH/CANL が出るパッドの直下。**
-当初これを U2 の西側（x 2.9〜5.6）に置いていたところ、U2 の北西角から
-Pico 左列へ回り込む唯一の通路を塞ぎ、CAN_RESET が最後まで配線できなかった。
-本来ここにあるべき部品で、移して未配線 0 になった。
+**R8 (the 120 Ω CAN termination) is on the south side of U2, directly below the pads where CANH/CANL
+come out.** It was originally on U2's west side (x 2.9–5.6), where it blocked the only corridor from
+U2's northwest corner around to the Pico's left column, and CAN_RESET could not be routed at all.
+This is where the part belongs, and moving it took the unrouted count to zero.
 
-### 検証済み項目
+### Verified items
 
-| 項目 | 結果 |
+| Item | Result |
 |---|---|
-| 部品配置 | 41点、表26 / 裏15（v4.2: Pico が裏面）|
-| チップ部品（1608）| 23点すべて表面（自動検査を C1608 まで拡大）|
-| 同一面での部品重なり | なし |
-| 他部品の穴の上に本体が乗っていないか | なし（自動検査）|
-| 基板外形からのはみ出し | なし（J1 のみ設計どおり y=0 辺を越える）|
-| 回路図とのネット一致 | 40ネット すべて一致 |
-| 配線 | 全数完了。328トラック / ビア182本（うち GND 137本）。XTAL 内層0はシード選定で自動保証（xtal_check）|
-| DRC 違反 | 0件 |
-| 未接続パッド | 0個 |
-| 浮き銅片（ビアもパッドも無いベタ領域）| 0個（全6領域を実測）|
-| 電源チェーン長 | 14.83mm（v1 初版 36.1mm）|
+| Component placement | 41 parts, 26 front / 15 back (v4.2: the Pico is on the back) |
+| Chip parts (1608) | All 23 on the front (the automatic check was extended to C1608) |
+| Overlapping parts on the same side | None |
+| A body sitting over another part's hole | None (automatic check) |
+| Protrusion beyond the board outline | None (only J1 crosses the y=0 edge, by design) |
+| Net agreement with the schematic | All 40 nets agree |
+| Routing | Complete. 328 tracks / 182 vias (137 of them GND). Zero inner-layer XTAL is guaranteed automatically by the seed selection (xtal_check) |
+| DRC violations | 0 |
+| Unconnected pads | 0 |
+| Floating copper (pour regions with no via and no pad) | 0 (all 6 regions measured) |
+| Power chain length | 14.83 mm (36.1 mm in the first v1) |
 
-**GND パッドは全数サーマル接続（v2）。** スポーク 0.4mm / ギャップ 0.3mm / 最小スポーク数 1。
-v1 のベタ直結は手はんだ時の熱逃げが酷く、実基板で許容できないと判断して改めた。
-スポークが全パッドに到達していることは DRC の未接続0で担保している。
+**Every GND pad uses thermal relief (v2).** Spoke 0.4 mm / gap 0.3 mm / minimum spoke count 1. The
+direct pour connection of v1 sank far too much heat during hand soldering, and was judged
+unacceptable on a physical board, so it was changed. That the spokes reach every pad is guaranteed by
+DRC reporting zero unconnected.
 
-配線は Freerouting で実施。GND は F.Cu / In1.Cu / B.Cu の3層に流し、
-スティッチングビアで4層を結合してある。スティッチングビアは全パッド・全ビアとの
-間隔に加えて **ドリル穴どうしの間隔 0.25mm** も満たすよう配置前に検査している
-（同ネットどうしはクリアランス規則が消えるが、**ドリル間隔規則は残る**。
-これを見落として GND ビアを障害物から外し、配線ビアの穴に食い込ませたことがある）。
+Routing is done with Freerouting. GND is poured on three layers (F.Cu / In1.Cu / B.Cu) and the four
+layers are tied together with stitching vias. Stitching vias are checked before placement to satisfy
+not only the clearance to every pad and via but also **a 0.25 mm drill-to-drill spacing** (clearance
+rules disappear between same-net objects, but **the drill spacing rule remains** — missing this once
+led to GND vias being excluded from the obstacle set and eating into the holes of routing vias).
 
-**スティッチングビアは、他ネットのスルーホールから 2.2mm の堀（moat）を保つ（v4.1）。**
-貫通ビアは内層プレーン両方にクリアランスの空洞を開けるため、1mm 格子のビア群が
-他ネットの PTH パッドを囲むと、そのパッドがプレーンから受けるべきサーマルスポークを
-全方向で塞ぐことがある。v4.1 の Pico 回転で 3V3 ピン（パッド36、In2 プレーンから給電）が
-J2 の GND パッド近傍圏に入り、ビアの檻に包囲されて**全 8 シードで未接続 1** という
-決定論的な失敗になった。ネットを持つ非 GND の PTH パッドの周囲 2.2mm を除外することで、
-パッドのサーマル空洞の外側に 0.5mm 以上のフィルの環が常に残り、スポークが成立する。
+**Stitching vias keep a 2.2 mm moat from the through-holes of other nets (v4.1).** A through via
+opens a clearance void in both inner planes, so when a 1 mm grid of vias surrounds another net's PTH
+pad it can block, in every direction, the thermal spokes that pad should receive from the plane. With
+the Pico rotation in v4.1 the 3V3 pin (pad 36, fed from the In2 plane) came into the neighborhood of
+J2's GND pads, got caged in by vias, and produced a deterministic **1 unconnected in all 8 seeds**.
+Excluding 2.2 mm around any non-GND PTH pad that has a net always leaves a ring of fill at least
+0.5 mm wide outside the pad's thermal void, so a spoke can form.
 
-製造データは `cad/kicad/fab/`。ガーバーは4層分（`.gtl` / `.g1` / `.g2` / `.gbl`）を
-出力し、`MotoRecoPico-gerber.zip` にまとめてある。ドリルは PTH / NPTH 分割。
+The fabrication data is in `cad/kicad/fab/`. Gerbers are output for all four layers (`.gtl` / `.g1` /
+`.g2` / `.gbl`) and collected in `MotoRecoPico-gerber.zip`. The drills are split into PTH / NPTH.
 
 ---
 
-## 7. 参考資料
+## 7. References
 
-- [MCP25625 データシート (DS20005282B)](https://akizukidenshi.com/goodsaffix/mcp25625.pdf) — ピン配置 Table 1-1 (p.4)、参考回路 Figure 1-2 (p.5)
-- [GT-502MGG データシート](https://akizukidenshi.com/goodsaffix/GT-502MGG.pdf) — ピン説明 2.1 節 (p.7)、DC特性 1.3 節 (p.6)
-- [DM3AT-SF-PEJM5 2D図面 ADC-325165-00-01](https://www.hirose.com/ja/product/p/CL0609-0031-0-00) — 推奨基板パターン（実装面側）
-- [M78AR05-0.5 データシート](https://akizukidenshi.com/goodsaffix/m78a.pdf) — 機構寸法 p.3、Note 6/7 p.2
-- [LP812-010(T) データシート](https://akizukidenshi.com/goodsaffix/lp812-010(t).pdf) — 推奨はんだ付けパターン p.3
-- [Raspberry Pi Pico 2 データシート](https://datasheets.raspberrypi.com/pico/pico-2-datasheet.pdf) — 3V3(OUT) 負荷上限、VSYS 給電方法
-- [TE 1-967658-1 製品ページ](https://www.te.com/en/product-1-967658-1.html)
-- [ZXMP6A17E6Q データシート](https://www.diodes.com/datasheet/download/ZXMP6A17E6Q.pdf)
+- [MCP25625 datasheet (DS20005282B)](https://akizukidenshi.com/goodsaffix/mcp25625.pdf) — pinout
+  Table 1-1 (p.4), reference circuit Figure 1-2 (p.5)
+- [GT-502MGG datasheet](https://akizukidenshi.com/goodsaffix/GT-502MGG.pdf) — pin descriptions
+  section 2.1 (p.7), DC characteristics section 1.3 (p.6)
+- [DM3AT-SF-PEJM5 2D drawing ADC-325165-00-01](https://www.hirose.com/ja/product/p/CL0609-0031-0-00)
+  — recommended board pattern (mounting-side view)
+- [M78AR05-0.5 datasheet](https://akizukidenshi.com/goodsaffix/m78a.pdf) — mechanical dimensions
+  p.3, Notes 6/7 p.2
+- [LP812-010(T) datasheet](https://akizukidenshi.com/goodsaffix/lp812-010(t).pdf) — recommended
+  solder pattern p.3
+- [Raspberry Pi Pico 2 datasheet](https://datasheets.raspberrypi.com/pico/pico-2-datasheet.pdf) —
+  3V3(OUT) load limit, how to supply VSYS
+- [TE 1-967658-1 product page](https://www.te.com/en/product-1-967658-1.html)
+- [ZXMP6A17E6Q datasheet](https://www.diodes.com/datasheet/download/ZXMP6A17E6Q.pdf)

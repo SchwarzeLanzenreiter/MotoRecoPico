@@ -1,35 +1,37 @@
-# MotoRecoPico ファームウェア
+# MotoRecoPico firmware
 
-Raspberry Pi 版ロガー（`MotoRecoLogger/mrlogger.c`）の Pico 2 (RP2350) 移植。
-**`.dat` は Pi 版とバイナリ互換**で、MotoRecoViewer がそのまま開ける。
+A port of the Raspberry Pi logger (`MotoRecoLogger/mrlogger.c`) to the Pico 2 (RP2350).
+**The `.dat` files are binary-compatible with the Pi version**, so MotoRecoViewer opens them as-is.
 
-ピン割当・回路は [`../docs/netlist.md`](../docs/netlist.md) が正典。本書はソフト側だけを扱う。
+Pin assignment and the circuit are defined canonically in
+[`../docs/netlist.md`](../docs/netlist.md). This document covers only the software side.
 
-## ビルド
+## Build
 
-pico-sdk と arm-none-eabi-gcc が必要。FatFs（R0.16）は
-[`third_party/fatfs/`](third_party/fatfs/README.md) に同梱済み。
+You need pico-sdk and arm-none-eabi-gcc. FatFs (R0.16) is already bundled in
+[`third_party/fatfs/`](third_party/fatfs/README.md).
 
-VS Code の Pico 拡張が入っている環境では、SDK もツールチェーンも `~/.pico-sdk` にある。
-**`picotool_DIR` を渡すこと**（渡さないと SDK が picotool をソースから作ろうとし、
-ホスト用 C コンパイラが無い環境では失敗する）:
+On a machine with the VS Code Pico extension installed, both the SDK and the toolchain live in
+`~/.pico-sdk`. **Pass `picotool_DIR`** — without it the SDK tries to build picotool from source,
+which fails on a machine with no host C compiler:
 
 ```bash
 cmake -B build -G Ninja -DPICO_BOARD=pico2 -Dpicotool_DIR=$HOME/.pico-sdk/picotool/2.2.0-a4/picotool
 cmake --build build
 ```
 
-`build/motorecopico.uf2` を BOOTSEL 起動した Pico にコピーする。
+Copy `build/motorecopico.uf2` onto a Pico booted in BOOTSEL mode.
 
-CAN バスなしでドライバを確かめたいときは `-DCAN_SELF_TEST=ON`。
-MCP25625 をループバックにして、送信したフレームが戻るかを起動時に1回試す。
+To exercise the driver without a CAN bus, build with `-DCAN_SELF_TEST=ON`. It puts the MCP25625
+into loopback and checks once at startup that a transmitted frame comes back.
 
-## テスト
+## Tests
 
-ハードウェアに触らない部分（NMEA パーサ・レコード符号化・設定ファイル・IG 判定・壁時計）を検証する。
-**実機（素の Pico 2 でよい。MotoRecoPico 基板は不要）でも PC でも走る。**
+The tests cover everything that does not touch hardware: the NMEA parser, record encoding, the
+settings file, the IG decision, and the wall clock. **They run on real hardware (a bare Pico 2 is
+enough — the MotoRecoPico board is not needed) and on a PC.**
 
-実機で走らせる場合 — `build/motorecopico_tests.uf2` を書き込み、USB シリアルを開く:
+To run on hardware, flash `build/motorecopico_tests.uf2` and open the USB serial port:
 
 ```
 MotoRecoPico tests
@@ -40,270 +42,300 @@ GGA
 ALL TESTS PASSED (0 failures).
 ```
 
-**このテストはまだ一度も実行されていない**（開発機にホスト用 C コンパイラが無く、
-Pico も接続されていないため）。コンパイルは両ビルドで通っている。最初に実機へ書き込んだ際、
-失敗が出たらそれはテスト側の想定値の誤りかもしれない — 実装と突き合わせて判断すること。
+**These tests have never actually been run** (the development machine has no host C compiler and no
+Pico attached). Both builds do compile. The first time they are flashed to hardware, a failure may
+well be a wrong expected value in the test rather than a bug — check it against the implementation
+before concluding anything.
 
-実機で走らせる意味は結果だけではない。**`struct CANData` が arm で本当に16バイトに並ぶか**は
-PC 上のテストでは確かめられない（`motoreco.h` の `static_assert` が実機ビルドで効く）。
+Running on hardware matters for more than the result. **Whether `struct CANData` really lays out as
+16 bytes on arm** cannot be checked by a PC test (the `static_assert` in `motoreco.h` only takes
+effect in the hardware build).
 
-PC で走らせる場合は `cd test && ./build.ps1`（MSVC）か `make`（gcc/clang）。
+To run on a PC: `cd test && ./build.ps1` (MSVC) or `make` (gcc/clang).
 
-### 実機で確かめた数字
+### Numbers measured on real hardware
 
-| 項目 | 実測 | 出所 |
+| Item | Measured | Source |
 |---|---|---|
-| IG OFF 後の保持時間 | **約 0.55〜0.6秒** | 2026-09-04 の走行。`power still up 550ms` が最後の行で 600ms は書けなかった。§4.7 の「保証0.4秒・典型0.5秒」を裏付ける |
-| 全 CAN のレコード数 | 約 1160/秒（約 18.5KB/秒）、33 ID | 実走ログ 1611秒の解析 |
-| 1トリップの実測 | **810万レコード / 123.7MB / 1時間55分 / 1177 rec/秒** | 2026-10-17。146km 走行。CAN 31 ID |
-| GPS の実レート（走行中）| **9.92 Hz、全間隔の 99.7% が 100ms** | 同トリップ。駐車中は重複判定で間引かれるが走行中は毎測位記録される |
-| 時刻の逆転 | **0 件 / 810万** | 同トリップ。`clamped:0`。時刻順マージが効いている |
-| レコードの欠落 | **最大間隔 7ms、500ms超の穴 0 件** | 同トリップ。`can rx overflow` も一日通して 0 件 |
-| メインループの停止 | 最大 **1285ms**（SDカード待ち）| 同日。GPS リング実測ピーク 3536/8192。旧 2048 では溢れていた（`uart_lost:455`）|
-| レコード時刻の前後 | **4件 / 27,846件、最大 2ms** | 2026-10-13、GPS 10Hz ＋ CAN 再生。1Hz では 0件。上記クランプで解消 |
-| GPS 10Hz の実スループット | **1440 B/秒**（20文/秒、1文 72B）= 115200 の 12% | 2026-10-13。`bad:0 uart_lost:0`。9600 の 960 B/秒では入らない |
-| コールドスタートの測位時間 | 約 43秒（`sats used:5` で初測位）| 同日。J3 にバックアップ給電が無いので毎回コールド |
+| Hold-up time after IG OFF | **about 0.55–0.6 s** | Ride of 2026-09-04. `power still up 550ms` was the last line written; 600 ms never made it. Confirms the "0.4 s guaranteed, 0.5 s typical" of §4.7 |
+| Record rate, all CAN | about 1160/s (about 18.5 KB/s), 33 IDs | Analysis of a 1611-second real-world log |
+| One trip, measured | **8.1 M records / 123.7 MB / 1 h 55 min / 1177 rec/s** | 2026-10-17. 146 km ridden. 31 CAN IDs |
+| Actual GPS rate (while riding) | **9.92 Hz, 99.7% of all intervals at 100 ms** | Same trip. While parked, fixes are thinned out by the duplicate check; while riding every fix is recorded |
+| Time going backwards | **0 out of 8.1 M** | Same trip. `clamped:0`. The time-ordered merge is doing its job |
+| Missing records | **largest gap 7 ms, zero gaps over 500 ms** | Same trip. `can rx overflow` was also 0 for the whole day |
+| Main loop stalls | up to **1285 ms** (waiting on the SD card) | Same day. Measured GPS ring peak 3536/8192. The old 2048 overflowed (`uart_lost:455`) |
+| Records out of time order | **4 out of 27,846, at most 2 ms** | 2026-10-13, GPS at 10 Hz plus CAN replay. Zero at 1 Hz. Resolved by the clamp described below |
+| Actual GPS throughput at 10 Hz | **1440 B/s** (20 sentences/s, 72 B each) = 12% of 115200 | 2026-10-13. `bad:0 uart_lost:0`. It does not fit in the 960 B/s of 9600 baud |
+| Cold-start time to fix | about 43 s (first fix at `sats used:5`) | Same day. J3 has no backup supply, so every start is a cold start |
 
-シャットダウン処理（フラッシュ→sync→Close→リネーム）はこの 0.55秒に収める必要がある。
-デバッグログ1行の書き込みは実測で数 ms 未満だった（生存ログの行がきっちり 50ms 刻みで並んだ）。
+The shutdown sequence (flush → sync → close → rename) has to fit inside that 0.55 s. Writing one
+line of debug log measured at well under a few milliseconds (the survival-log lines came out at
+exactly 50 ms spacing).
 
-## 構成
+## Layout
 
-| ファイル | 役割 |
+| File | Role |
 |---|---|
-| `src/main.c` | 初期化と単一ループ。CAN と GPS UART だけが割込み駆動 |
-| `src/config.h` | ピン割当と全定数。設定ファイルの既定値もここ |
-| `src/settings.c` | 設定ファイルのパース（純粋。PC でテスト可能）|
-| `src/settings_file.c` | 同・FatFs 側（読み込み／既定値での生成／隠し属性）|
-| `src/motoreco.h` | `struct CANData`。Pi 版と同一レイアウト（16バイト固定・LE）|
-| `src/mcp25625.c` | CAN コントローラ。受信は割込みでリングバッファへ |
-| `src/sd_spi.c` | SD の SPI ブロックドライバ |
-| `src/diskio.c` / `src/ffconf.h` | FatFs との接続。`get_fattime()` は GPS 時刻を返す |
-| `src/nmea.c` | GGA / RMC パーサ。gpsd の代わり |
-| `src/wallclock.c` | GPS 時刻を単調時計に紐付けた壁時計 |
-| `src/record.c` | `.dat` レコードの生成と GPS の固定小数点符号化 |
-| `src/logger.c` | ファイルのライフサイクル、`f_sync`、デバッグログ |
-| `src/led.c` | 緑LED の点滅パターン |
-| `src/power.c` | IG OFF 判定の状態機械（純粋。PC でテスト可能）|
+| `src/main.c` | Initialization and the single loop. Only CAN and the GPS UART are interrupt-driven |
+| `src/config.h` | Pin assignment and every constant, including the settings-file defaults |
+| `src/settings.c` | Settings-file parsing (pure; testable on a PC) |
+| `src/settings_file.c` | The FatFs side of the same (read, create with defaults, hidden attribute) |
+| `src/motoreco.h` | `struct CANData`. Identical layout to the Pi version (fixed 16 bytes, LE) |
+| `src/mcp25625.c` | The CAN controller. Reception goes into a ring buffer from the interrupt |
+| `src/sd_spi.c` | The SPI block driver for the SD card |
+| `src/diskio.c` / `src/ffconf.h` | Glue to FatFs. `get_fattime()` returns GPS time |
+| `src/nmea.c` | GGA / RMC parser. Replaces gpsd |
+| `src/wallclock.c` | A wall clock made by pinning GPS time to the monotonic clock |
+| `src/record.c` | Building `.dat` records and the fixed-point encoding of GPS |
+| `src/logger.c` | File lifecycle, `f_sync`, the debug log |
+| `src/led.c` | Blink patterns for the green LED |
+| `src/power.c` | The state machine for the IG OFF decision (pure; testable on a PC) |
 
-## Pi 版との違い
+## Differences from the Pi version
 
-| | Raspberry Pi 版 | Pico 版 |
+| | Raspberry Pi version | Pico version |
 |---|---|---|
-| CAN | SocketCAN (`can0`) | MCP25625 を SPI1 で直接。受信は割込み |
-| GPS | gpsd | UART0 の NMEA を自前でパース |
-| 保存 | ext4 上の `fopen`/`fwrite` | FatFs + 自作 SD SPI ドライバ |
-| 時刻 | NTP 同期済みの system clock | GPS 時刻（RTC もバックアップも無い）|
-| キーON/OFF | GPIO 27 を3回デバウンス | **GP28 の IG 検出**。0.55秒の猶予で確定する |
-| 他プロセス連携 | System V 共有メモリ | 無し（Pico に相当物が無い）|
-| デバッグログ | `canlogger.log` | `motoreco.log` ＋ USB シリアル |
+| CAN | SocketCAN (`can0`) | MCP25625 directly over SPI1. Interrupt-driven reception |
+| GPS | gpsd | NMEA on UART0, parsed in-house |
+| Storage | `fopen`/`fwrite` on ext4 | FatFs plus our own SD SPI driver |
+| Time | NTP-synchronized system clock | GPS time (there is no RTC and no backup) |
+| Key on/off | GPIO 27, debounced three times | **IG detection on GP28**. Finalized within the 0.55 s grace period |
+| Talking to other processes | System V shared memory | None (the Pico has no equivalent) |
+| Debug log | `canlogger.log` | `motoreco.log` plus USB serial |
 
-## ログファイルの扱い
+## How log files are handled
 
 ```
-電源ON（＝IG ON）      TMPnnnnn.DAT を作って即記録開始
-最初の GPS 測位        閉じて「開始時刻」の名前にリネームし、追記で開き直す
-IG OFF（キーOFF）      フラッシュ → sync → Close → 「終了時刻」にリネーム → アイドル
-異常断電               直前の f_sync までが確実に残る（最大1秒分＋31レコードの損失）
+Power on (= IG ON)        create TMPnnnnn.DAT and start recording immediately
+First GPS fix             close it, rename it to the "start time", reopen for append
+IG OFF (key off)          flush -> sync -> close -> rename to the "end time" -> idle
+Unexpected power loss     everything up to the last f_sync is safe (losing at most
+                          1 second plus 31 records)
 ```
 
-マウントするたびに（起動時とカード差し替え時）、**0 バイトの `TMP*.DAT` は削除する**。
-1件も書かないうちに電源が切れたログで、ファーム書き込み直後の自動再起動で必ず1つ残っていた。
-中身のある `TMP*.DAT`（GPS の日付が取れないまま終わった走行）は唯一の記録なので残す。
-消したときは `motoreco.log` に `deleted N empty TMP*.DAT ...` が出る。
+On every mount (at startup and when a card is swapped), **zero-byte `TMP*.DAT` files are deleted**.
+Those are logs that lost power before writing a single record; the automatic reboot right after
+flashing firmware always left one behind. A `TMP*.DAT` with content (a ride that ended before GPS
+ever supplied a date) is the only copy of that ride, so it is kept. When something is deleted,
+`motoreco.log` gets a `deleted N empty TMP*.DAT ...` line.
 
-### レコードの時刻は単調であることを保証する
+### Record timestamps are guaranteed to be monotonic
 
-`.dat` のレコードは、どちらも**割り込みが受信を捉えた時刻**を持つ。
+Both kinds of `.dat` record carry **the time at which the interrupt saw the data arrive**.
 
-| レコード | 時刻の出どころ |
+| Record | Where the timestamp comes from |
 |---|---|
-| CAN フレーム | **割り込みが捕捉した時刻**（`frame.timestamp_us`）。CAN の時間解析に使うので精度を落としたくない |
-| GPS レコード | **その文の `$` を UART 割り込みが受けた時刻**。GGA / RMC のどちらから書いたかで、その文の時刻 |
+| CAN frame | **The time the interrupt captured it** (`frame.timestamp_us`). This feeds CAN timing analysis, so we do not want to lose precision |
+| GPS record | **The time the UART interrupt received that sentence's `$`**. Whichever sentence (GGA or RMC) the record was written from, it is that sentence's arrival time |
 
-以前の GPS レコードは**書き込んだ時刻**だった。そのため2つの問題があった:
+GPS records used to carry **the time they were written**, which caused two problems:
 
-- CAN と前後した。メインループが CAN を吐き出している最中に割り込みが新しいフレームを積むと、
-  あとから書かれる GPS レコードの方が時刻が古くなる。**10Hz の実機ログで 4件 / 27,846件、最大 2ms**
-- SD がループを止めると、止まっている間に届いた測位が復帰後にまとめて書かれ、**同じ時刻に並んだ**
-  （2026-10-13 のベンチで 0.93 秒の停止のあと 4 測位が 1ms 以内、最大約 0.8 秒のずれ）
+- They came out of order with respect to CAN. If the interrupt pushed new frames while the main
+  loop was draining CAN, a GPS record written afterwards could carry an older timestamp.
+  **4 out of 27,846 records in a 10 Hz hardware log, at most 2 ms**
+- When the SD card stalled the loop, every fix that arrived during the stall got written in a burst
+  afterwards, **all with the same timestamp** (in a 2026-10-13 bench run, after a 0.93-second stall,
+  4 fixes landed within 1 ms, up to about 0.8 s off)
 
-今は次の3段で書く:
+The write path now has three stages:
 
-1. **受信時刻を割り込みで取る。** `on_uart_rx` が `$` をリングに入れるとき、時刻リング
-   （256 件）にも入れる。時刻を入れられないなら `$` も入れないので、2つのリングはずれようがない
-2. **GPS を先に解析し、レコードは保留にする。** `handle_gps` は SD に書かず、レコードと受信時刻を
-   保留キュー（128 件）に積むだけ。キューに空きが無ければ、残りはリングに置いたまま次の周へ
-3. **CAN と時刻順に混ぜて書く。** `handle_can_frames` は次の CAN フレームの時刻を
-   （取り出さずに `mcp25625_peek_timestamp` で）見て、それより前に受信した保留を先に書く。
-   さらに、そのフレームより前に `$` が届いているのに**まだ解析していない文**があれば、
-   書き出しを中断してループの次の周で先に解析させる（`gps_unparsed_before`）。最後に、
-   CAN リングが空なら保留を全部、空でなければ次のフレームより前のものだけ書く
+1. **Capture the arrival time in the interrupt.** When `on_uart_rx` puts a `$` into the ring, it
+   also puts the timestamp into a timestamp ring (256 entries). If the timestamp cannot be stored,
+   the `$` is not stored either, so the two rings cannot drift apart
+2. **Parse GPS first and hold the record back.** `handle_gps` does not write to the SD card; it only
+   pushes the record and its arrival time onto a pending queue (128 entries). If the queue is full,
+   the rest stays in the ring for the next pass
+3. **Write it merged with CAN in time order.** `handle_can_frames` looks at the timestamp of the
+   next CAN frame (without consuming it, via `mcp25625_peek_timestamp`) and writes any pending
+   record that arrived before it. Furthermore, if a `$` arrived before that frame but **has not been
+   parsed yet**, it stops writing so the next pass of the loop parses it first
+   (`gps_unparsed_before`). Finally, if the CAN ring is empty it writes all pending records,
+   otherwise only those older than the next frame
 
-   未解析の文を待たない最初の版は、ベンチで `clamped:82` を出した。CAN の書き出し中に届いた
-   文を追い越して新しい CAN を書いてしまい、その文のレコードがあとからクランプされていた。
-   895ms の停止では、待っていた 3 測位が同じミリ秒に並んだ。組み立て途中で止まった文は
-   `GPS_SENTENCE_MAX_MS`（200ms）で諦めるので、受信機が文の途中で黙っても CAN は止まらない
+   The first version, which did not wait for unparsed sentences, produced `clamped:82` on the bench.
+   It overtook a sentence that arrived mid-drain and wrote newer CAN first, so that sentence's record
+   got clamped afterwards. During an 895 ms stall, the 3 fixes that had been waiting all landed in
+   the same millisecond. A sentence that stops arriving mid-assembly is given up on after
+   `GPS_SENTENCE_MAX_MS` (200 ms), so CAN does not stall if the receiver goes quiet in the middle of
+   a sentence
 
-そのうえで `stamp_record()` が**直前のレコードより古い時刻は書かない**（単調性クランプ）。
-これは修正ではなく**保証**で、混ぜ方が正しければほとんど働かない。ずらされた件数は
-`status:` 行の `clamped:` に出るので、これが増え続けるなら混ぜ方が壊れている。
+On top of that, `stamp_record()` **never writes a timestamp older than the previous record**
+(a monotonicity clamp). This is not a fix but a **guarantee**: if the merge is correct it almost
+never fires. The number of records it shifted appears as `clamped:` on the `status:` line, so if
+that keeps climbing, the merge is broken.
 
-時刻を取るのは文の先頭なので、以前（書いた時刻）より**数 ms 早い**。1 文の送信時間とループの
-遅れのぶんで、測位した瞬間にはこちらが近い。`.dat` の形式は変わらない。
+Because the timestamp is taken at the start of the sentence, it is **a few milliseconds earlier**
+than before (when it was the write time) — by the transmission time of one sentence plus the loop
+delay, which puts it closer to the moment of the fix. The `.dat` format is unchanged.
 
-クランプは**正常なログを1ビットも変えない**（1Hz の実ログ26,718件で検証済み）。
-作用するのは前後した当該レコードだけで、巻き戻り量そのぶん（最大2ms）前に寄せる。
+The clamp **does not change a single bit of a healthy log** (verified against 26,718 records of a
+real 1 Hz log). It only touches the record that is out of order, moving it forward by exactly the
+amount of the rewind (at most 2 ms).
 
-> 同じ比較が**符号なしの桁あふれも防いでいる**。最初に刻まれたレコードが基準時刻を
-> 決めるので、それが「ループ先頭より後に捕捉された CAN フレーム」だった場合、
-> 続く GPS レコードの引き算が巻き戻って `second` に巨大なゴミが入りうる
-> （旧コードでは `18446744073709551615`）。実走で CAN が最初から流れている場合に
-> 起こり得る経路だった。
+> The same comparison **also prevents unsigned underflow**. The first record stamped sets the
+> reference time, so if that was "a CAN frame captured after the top of the loop", the subtraction
+> for the following GPS record could wrap and put enormous garbage into `second`
+> (`18446744073709551615` in the old code). This was a reachable path whenever CAN traffic was
+> already flowing at startup, which is the normal case on the bike.
 
-### 壁時計（デバッグログの時刻とファイル名）
+### The wall clock (debug log timestamps and file names)
 
-基板に RTC は無いので、日時は **測位した RMC** から `wallclock.c` に教える。`.dat` の時刻とは別物で、
-使うのはデバッグログの時刻とファイル名だけ。
+There is no RTC on the board, so the date and time are handed to `wallclock.c` by **a fixed RMC**.
+It is separate from the `.dat` timestamps and is only used for debug-log times and file names.
 
-- RMC の時刻は**小数秒まで読む**（`hhmmss.sss`）。その文の `$` の受信時刻から小数秒を引いた時刻を、
-  整数秒に対応させる。以前は小数秒を捨ててループ先頭の時刻に対応させていたので、10Hz だと
-  毎測位ごとに最大 0.9 秒戻され、ログの時刻が逆戻りしていた（2026-10-13 に 16ms の逆戻りを観測）
-- 合わせ直すのは、走っている時計と測位が **50ms（`WALLCLOCK_RESYNC_MS`）を超えて食い違ったときだけ**
-  （`wallclock_sync`）。受信時刻の数 ms の揺れで時計を前後させないため。Pico の水晶のずれは
-  これよりずっと遅いので、長い走行でもときどき合わせ直すだけで足りる
-- 受信機が文を出すまでの遅れ（一定の数十 ms）のぶん、時計はわずかに遅れる。ログとファイル名には十分
+- The RMC time is read **down to the fractional seconds** (`hhmmss.sss`). The arrival time of that
+  sentence's `$`, minus the fractional part, is what the whole second is pinned to. Previously the
+  fractional part was discarded and the time was pinned to the top of the loop, so at 10 Hz the
+  clock was pulled back by up to 0.9 s on every fix and log timestamps ran backwards (a 16 ms
+  rewind was observed on 2026-10-13)
+- The clock is only re-synced when the running clock and the fix **disagree by more than 50 ms**
+  (`WALLCLOCK_RESYNC_MS`, in `wallclock_sync`), so that a few milliseconds of jitter in arrival
+  times does not keep nudging the clock back and forth. The Pico's crystal drifts far more slowly
+  than that, so an occasional re-sync is enough even on a long ride
+- The clock lags slightly by the receiver's fixed output delay (tens of milliseconds). That is
+  plenty good enough for logs and file names
 
-## ログの確定は IG OFF ただ1つ
+## IG OFF is the one and only finalization trigger
 
-**トリガは IG OFF だけ。** 以前は CAN の回転数低下でも確定していたが、CAN ID と
-デコード式が車種ごとに違い、閾値も1台の実走データ由来だった。**イグニッション線は
-どのバイクでも同じことを言う**ので、車種依存を持ち込まずに済むこちらへ一本化した。
+**The only trigger is IG OFF.** A drop in CAN engine speed used to finalize a log as well, but the
+CAN ID and the decoding formula differ per model, and the threshold came from the real-world data of
+a single bike. **The ignition line says the same thing on any motorcycle**, so everything was moved
+onto the one that carries no vehicle-specific knowledge.
 
-デバッグログを `trigger:` で grep すれば確定の記録が出る:
+Grep the debug log for `trigger:` to find the finalization record:
 
 ```
 [20260904 154302.233] trigger: ignition off (65mV). log closed and renamed as '20260904_154302.dat'
 ```
 
-結果は成否だけでなく**何が起きたか**を出す（`logger_finalize_text()`）:
+The result reports not just success or failure but **what actually happened**
+(`logger_finalize_text()`):
 
-| 結果 | 意味 |
+| Result | Meaning |
 |---|---|
-| `log closed and renamed as '...'` | 同期してリネームまで完了 |
-| `log synced but not renamed, no gps time yet` | データは安全。GPS 未測位で名前が付けられない |
-| `no log was open` | カード無し等 |
-| `the card refused` | 書き込み失敗 |
+| `log closed and renamed as '...'` | Synced and renamed; fully complete |
+| `log synced but not renamed, no gps time yet` | The data is safe. No GPS fix yet, so no name can be given |
+| `no log was open` | No card, or similar |
+| `the card refused` | The write failed |
 
-**キーONのままエンジンが止まってもログは閉じない**（信号待ちのエンスト、休憩でエンジンだけ
-切る等）。データ保全は毎秒の `f_sync` が担保し、確定は IG OFF で行われる。
-回転数そのものは、これまでどおり CAN フレームとして `.dat` に記録される。
+**A log is not closed when the engine stops with the key still on** (stalling at a light, switching
+the engine off during a break, and so on). Data safety is handled by the per-second `f_sync`;
+finalization happens on IG OFF. Engine speed itself continues to be recorded into the `.dat` as CAN
+frames, as before.
 
-## IG OFF 検出（GP28）
+## IG OFF detection (GP28)
 
-**基板は IGN OFF 後 0.4秒（typ 0.5秒）だけ生き続ける**（C13 が Q2 のゲート電荷を保持し、
-R1 経由でゆっくり放電するため）。この猶予でログを確定させるのがファームウェアの責務で、
-契約は [`docs/netlist.md`](../docs/netlist.md) §4.7 に定義されている。
+**The board stays alive for 0.4 s after IGN OFF (typ. 0.5 s)** because C13 holds Q2's gate charge
+and discharges slowly through R1. Using that grace period to finalize the log is the firmware's
+responsibility; the contract is defined in [`docs/netlist.md`](../docs/netlist.md) §4.7.
 
-| 契約 | 実装 |
+| Contract | Implementation |
 |---|---|
-| GP28 を 50ms 以下の周期でポーリング | **10ms 周期のタイマ割込み**（`IG_POLL_INTERVAL_MS`）|
-| 0.35V を下回ったら フラッシュ→Close→リネーム→アイドル | `logger_shutdown()`。**sync を最優先**し、リネームは後 |
-| 猶予は保証 0.4秒（SD ストール最悪 250ms 込み）| 検出に使うのは 20ms（`IG_OFF_SAMPLES` 2回一致）|
+| Poll GP28 at 50 ms or faster | **A 10 ms timer interrupt** (`IG_POLL_INTERVAL_MS`) |
+| Below 0.35 V: flush → close → rename → idle | `logger_shutdown()`. **The sync comes first**; the rename is last |
+| The grace period is 0.4 s guaranteed (including a worst-case 250 ms SD stall) | Detection uses 20 ms of it (`IG_OFF_SAMPLES`, two consecutive readings) |
 
-**メインループではなくタイマ割込みで読む理由**は、SD の書き込みが数百 ms メインループを
-止めることがあるためです。そこで検出まで遅れると猶予を食い潰します。
-割込みは検出だけを行い、実際のファイル操作はメインループが担当します（FatFs は再入不可）。
+**The reason it is read from a timer interrupt and not the main loop** is that an SD write can stall
+the main loop for hundreds of milliseconds. A detection delayed that long would eat the grace
+period. The interrupt only detects; the actual file operations are done by the main loop (FatFs is
+not reentrant).
 
-### GP28 は電圧計ではない（v3 での変更）
+### GP28 is not a voltmeter (changed in v3)
 
-**この基板では電池電圧は測れません。** v3 で R15(10k) が Q1 のベースノードに接続され、
-そのノードは Q1 のベース・エミッタ接合によって**約0.65V にクランプ**されます。
-つまり読めるのは **IG ON（≈650mV）/ OFF（0V）だけ**です。
-0.65V はデジタル入力の VIH（約2V）未満なので、**ADC で読む必要があります**。
+**This board cannot measure battery voltage.** In v3, R15 (10k) was connected to Q1's base node, and
+that node is **clamped to about 0.65 V** by Q1's base-emitter junction. So all that can be read is
+**IG ON (≈650 mV) or OFF (0 V)**. Since 0.65 V is below the VIH of a digital input (about 2 V), it
+**has to be read with the ADC**.
 
-| 状態 | GP28 |
+| State | GP28 |
 |---|---|
-| IG ON | 約 650mV |
-| IG OFF | 0mV |
-| 閾値 | `IG_OFF_MV` 350mV / 復帰 `IG_ON_MV` 500mV |
+| IG ON | about 650 mV |
+| IG OFF | 0 mV |
+| Thresholds | `IG_OFF_MV` 350 mV, recovery `IG_ON_MV` 500 mV |
 
-status 行の `ig:` はこの**生のピン電圧**で、電池電圧ではありません:
+The `ig:` field on the status line is this **raw pin voltage**, not the battery voltage:
 
 ```
 status: rx:412033 records:398211 ig:651mV(on) | gps fix:1 ...
 ```
 
-### 保持時間の実測（診断用・既定 OFF）
+### Measuring the hold-up time (diagnostic, off by default)
 
-IG OFF 後、電源が尽きるまで 50ms ごとにログを書き続ける機能がある。
-**カードに残った最後の行が実測値**で、2026-09-04 の走行で測った結果が以下:
+There is a feature that keeps writing a log line every 50 ms after IG OFF until the power runs out.
+**The last line left on the card is the measured value.** Here is what the ride of 2026-09-04
+produced:
 
 ```
 [20260904 154302.233] trigger: ignition off (65mV). log closed and renamed as '20260904_154302.dat'
 [20260904 154302.264] power still up 50ms after ignition off
 [20260904 154302.314] power still up 100ms after ignition off
 ...
-[20260904 154302.764] power still up 550ms after ignition off   ← ここで途切れた
+[20260904 154302.764] power still up 550ms after ignition off   <- it stopped here
 ```
 
-**保持時間は約 0.55〜0.6秒**で、§4.7 の「保証0.4秒」に対し余裕がある。測定は済んだので
-`config.h` の `IG_OFF_SURVIVAL_LOG` は **既定 0**。C13 や負荷を変えて測り直したくなったら
-1 に戻す。電源が落ちかけている最中にデバッグログへ書き続けるため、その1ファイルが
-chkdsk を要する形で壊れる可能性がある（**トリップログはこの時点で既に閉じて同期済み**）。
+**The hold-up time is about 0.55–0.6 s**, comfortably above the "0.4 s guaranteed" of §4.7. The
+measurement is done, so `IG_OFF_SURVIVAL_LOG` in `config.h` **defaults to 0**. Set it back to 1 if
+C13 or the load changes and it needs re-measuring. Because it keeps writing to the debug log while
+the power is collapsing, that one file may end up corrupted enough to need chkdsk (**the trip log is
+already closed and synced by that point**).
 
-### 動作
+### Behavior
 
-- **一度 IG ON を観測するまで発火しない**（`armed`）。USB 給電のベンチで GP28 が 0V のまま
-  でも誤ってシャットダウンしない
-- **IG が戻ったら新しいログを開く**（USB 給電中にキーを戻した場合など）。閉じたファイルは
-  閉じたまま、次のトリップは別ファイルになる
-- アイドル中は **LED 消灯**（`LED_IDLE`）。「カード異常＝高速点滅」と紛らわしくないように
-- アイドル中は 5秒ごとのカード再マウントも止める（せっかく閉じたログを開き直さないため）
+- **It never fires until IG ON has been observed at least once** (`armed`), so a USB-powered bench
+  session with GP28 at 0 V does not shut down by mistake
+- **If IG comes back, a new log is opened** (for example turning the key back on while USB-powered).
+  Files already closed stay closed; the next trip becomes a separate file
+- While idle the **LED is off** (`LED_IDLE`), so it cannot be confused with "card error = fast
+  blink"
+- While idle the 5-second card remount is also suspended, so a log that was just closed does not get
+  reopened
 
-## GPS の受信周期（PMTK）
+## GPS fix interval (PMTK)
 
-受信機は MediaTek 系なので、**PMTK コマンドで測位周期・出力文・ボーレートを変えられる**
-（正典は [`docs/MT33xx_GNSS_PMTK_Users_Guide`](../docs/MT33xx_GNSS_PMTK_Users_Guide)）。
-これまで未使用だった TX 線（GP0 → モジュール RXD）を使い、**起動時に1回だけ**送る。
-`PMTK251` / `PMTK314` / `PMTK220` はいずれも `Keep status after reboot -> Yes` で
-モジュール側に残る。
+The receiver is MediaTek-based, so **PMTK commands can change the fix interval, the output
+sentences, and the baud rate** (canonically documented in
+[`docs/MT33xx_GNSS_PMTK_Users_Guide`](../docs/MT33xx_GNSS_PMTK_Users_Guide)). The TX line
+(GP0 → the module's RXD), unused until now, carries them, **once at startup**. `PMTK251`, `PMTK314`
+and `PMTK220` all have `Keep status after reboot -> Yes`, so they persist in the module.
 
-| コマンド | 用途 |
+| Command | Purpose |
 |---|---|
-| `PMTK251` | NMEA のボーレート。**10Hz を入れるにはこれが先**。4800〜921600 |
-| `PMTK314` | 出力する NMEA 文とその頻度（22フィールド）。各値は**測位レートの分周比**で 0=停止 / 1=毎回 / 2〜5=n回ごと |
-| `PMTK220` | 測位間隔 [ms]。範囲 **100〜10000**（1000ms超は秒単位に丸められる）|
-| `PMTK400` | 現在の測位間隔の**問い合わせ**。`$PMTK500,...` で返ってくる |
+| `PMTK251` | NMEA baud rate. **This has to come first to get 10 Hz in.** 4800–921600 |
+| `PMTK314` | Which NMEA sentences to output and how often (22 fields). Each value is a **divider of the fix rate**: 0 = off, 1 = every fix, 2–5 = every n-th fix |
+| `PMTK220` | Fix interval in ms. Range **100–10000** (above 1000 ms it is rounded to whole seconds) |
+| `PMTK400` | **Query** the current fix interval. The answer comes back as `$PMTK500,...` |
 
-### 受信機は、できないことを拒否して返す
+### The receiver refuses what it cannot do
 
-ここが実機で分かった肝。**`gps_rate = 100`（10Hz）を 9600bps で送ったら拒否された**:
+This is the key thing learned on hardware. **Sending `gps_rate = 100` (10 Hz) at 9600 bps got
+refused:**
 
 ```
 [+0.721s] gps: PMTK220 rejected, flag 2
 ```
 
-ガイドの定義で `$PMTK001,<cmd>,2` の flag 2 は **"Valid command / packet, but action failed"** —
-コマンドは届いて解釈されたが、**実行はされなかった**。9600 8N1 の実効容量 960 B/s に対し、
-GGA+RMC（実測で1測位あたり約144バイト）を 10Hz で出すには約 1,530 B/s 必要なので、
-**出力しきれない周期をモジュール自身が蹴った**ということになる。
-実測も `2.0 sentences/s`（= 1Hz）のままで、周期は一度も変わっていなかった。
+By the guide's definition, flag 2 in `$PMTK001,<cmd>,2` means **"Valid command / packet, but action
+failed"** — the command arrived and was understood, but **was not carried out**. Against the 960 B/s
+effective capacity of 9600 8N1, emitting GGA+RMC (measured at about 144 bytes per fix) at 10 Hz
+needs about 1,530 B/s, so **the module itself rejected an interval it could not output at**. The
+measurement agreed: `2.0 sentences/s` (= 1 Hz); the interval had never changed at all.
 
-> なお手元のガイドは、この「ボーレート不足で失敗する」機構を **PMTK251 の項にだけ**明記している
-> （*"If the baudrate is less than the max size of all NMEA sentences, it will return error with
-> command PMTK001,251,2"*）。測位間隔については MT3333 の NMEA 仕様書側に同じ記述がある。
+> Note that the guide at hand only documents this "fails when the baud rate is insufficient"
+> mechanism **under PMTK251** (*"If the baudrate is less than the max size of all NMEA sentences, it
+> will return error with command PMTK001,251,2"*). For the fix interval, the same statement appears
+> in the MT3333 NMEA specification instead.
 
-したがって**10Hz を取るにはボーレートを上げるしかない**。起動時の手順はこの順序でなければならない:
+So **the only way to get 10 Hz is to raise the baud rate**. The startup sequence has to be in this
+order:
 
-1. **`PMTK251` でボーレートを上げる** — 先に周期を試すと、これから広げる線の天井を
-   見つけて居座ってしまう
-2. `PMTK314` で GGA+RMC に絞る
-3. `PMTK220` で測位間隔。**拒否されたら自動で次の候補に上げて再試行**する
-   （ラダー: 100 → 125 → 200 → 250 → 500 → 1000ms）
-4. **`PMTK400` で実効値を読み戻す** — ACK は証拠にしない
+1. **Raise the baud rate with `PMTK251`** — try the interval first and it will find the ceiling of
+   the link you are about to widen, and settle there
+2. Narrow the sentence set to GGA+RMC with `PMTK314`
+3. Set the fix interval with `PMTK220`. **If it is refused, automatically climb to the next
+   candidate and retry** (ladder: 100 → 125 → 200 → 250 → 500 → 1000 ms)
+4. **Read the effective value back with `PMTK400`** — do not take the ACK as evidence
 
-### 結果: 115200 で 10Hz が通った（2026-10-13 実測）
+### Result: 10 Hz went through at 115200 (measured 2026-10-13)
 
 ```
 gps: nothing at 9600 baud, listening at 115200
@@ -313,15 +345,17 @@ gps: module holds 100ms fixes (10.0Hz), as asked
 gps rate: 20.0 sentences/s 1440 B/s (12% of 115200 baud) avg 72 B/sentence bad:0 uart_lost:0 (want 100ms, module 100ms)
 ```
 
-**バックオフは1段も走らず、1発で受理**。`bad:0 uart_lost:0` で取りこぼしもない。
-1測位あたり 144 バイト（72 B × 2文）という見積りは実測と一致し、
-**9600 の 960 B/s では最初から入らなかった**ことが裏付けられた — モジュールの拒否は正しかった。
+**Accepted on the first try, without a single backoff step.** `bad:0 uart_lost:0` means nothing was
+dropped either. The estimate of 144 bytes per fix (72 B × 2 sentences) matches the measurement,
+confirming that **it never could have fit in the 960 B/s of 9600** — the module's refusal was
+correct.
 
-なお上のログは**2回目以降の起動**。`PMTK251` はモジュール側に残るので、初回に上げたあとは
-自動判別が 115200 側で見つけて `PMTK251` を送る必要すらない（`gps_cfg_begin` が
-「もう目的の baud にいる」と判断して飛ばす）。判別が本体だと書いたのはこのため。
+Note that the log above is from **a second or later boot**. `PMTK251` persists in the module, so
+once it has been raised, auto-detection finds it at 115200 and does not even need to send `PMTK251`
+(`gps_cfg_begin` decides it is "already at the target baud" and skips it). This is why detection is
+described below as the real mechanism rather than a nicety.
 
-ログはこう出る（初回起動時、9600 から上げる場合）:
+The log looks like this on a first boot, coming up from 9600:
 
 ```
 gps: module is at 9600 baud
@@ -333,7 +367,7 @@ gps: fix interval accepted (100ms, 10.0Hz)
 gps: module holds 100ms fixes (10.0Hz), as asked
 ```
 
-入らなかった場合はこうなる（**どの周期で妥協したかが1行で分かる**）:
+And like this when it does not fit (**one line tells you which interval it settled for**):
 
 ```
 gps: PMTK251,115200 did not take, staying at 9600 baud
@@ -343,128 +377,139 @@ gps: fix interval accepted (200ms, 5.0Hz)
 gps: module holds 200ms fixes (5.0Hz), as asked
 ```
 
-**`module holds ...` と `as asked` が一致していなければ通っていない。** 読み戻しが
-`gps: module holds 1000ms fixes, we asked for 100ms. PMTK220 did not take` と言ったら、
-ACK が自分について嘘をついている。
+**If `module holds ...` and `as asked` do not agree, it did not go through.** If the read-back says
+`gps: module holds 1000ms fixes, we asked for 100ms. PMTK220 did not take`, then the ACK was lying
+about itself.
 
-### ボーレートが不定である件（自動判別）
+### The baud rate is not knowable in advance (auto-detection)
 
-`PMTK251` の設定は再起動では残るが、**フルコールドスタートと standby 移行で既定に戻る**。
-さらに前に使ったカードの設定が残っている可能性もある。つまり
-**電源投入時にモジュールが喋っているボーレートは本当に分からない**。
+The `PMTK251` setting survives a reboot, but **a full cold start or a transition to standby resets
+it to the default**. On top of that, settings from a previously used card may still be in place. In
+other words, **the baud rate the module is talking at when power comes up is genuinely unknown**.
 
-なので**何も送る前に聞く**。9600 で `GPS_PROBE_MS`（1.5秒）聞いて、チェックサムの通る文が来なければ
-もう一方の候補に切り替えて聞き直す（最大4回）。これは飾りではなく本体で、
-片方を前提にする実装は一定割合の起動で GPS を殺す。
+So **we listen before sending anything**. Listen at 9600 for `GPS_PROBE_MS` (1.5 s); if no sentence
+with a valid checksum arrives, switch to the other candidate and listen again (up to four times).
+This is not decoration but the real mechanism: an implementation that assumes one of the two kills
+GPS on a certain fraction of boots.
 
 ```
 gps: nothing at 9600 baud, listening at 115200
 gps: module is at 115200 baud
 ```
 
-設定を `gps_baud = 9600` に戻せば**元に戻せる**。判別は設定値に関わらず常に
-9600 と 115200 の両方を試すので、115200 に残ったモジュールもちゃんと見つけて戻せる。
+Setting `gps_baud = 9600` **puts it back**. Detection always tries both 9600 and 115200 regardless
+of the configured value, so a module left at 115200 is still found and can be brought back.
 
-### 実測スループット
+### Measured throughput
 
-推測で終わらせないため、**10秒ごとに実測値を出す**:
+So that nothing rests on guesswork, **the measured value is printed every 10 seconds**:
 
 ```
 gps rate: 20.0 sentences/s 1440 B/s (12% of 115200 baud) avg 72 B/sentence bad:0 uart_lost:0 (want 100ms, module 100ms)
 ```
 
-（↑ 2026-10-13 の実測値。**GSA / GSV を止めていたとき**の 10Hz 定常状態。
-GSA / GSV を 2Hz で戻した現在は、文数が約 20 → 約 38/秒、バイト数が約 2600 B/s、
-`% of 115200 baud` が 20% 台になるのが期待値）
+(The numbers above are measured on 2026-10-13, in 10 Hz steady state **with GSA / GSV turned off**.
+Now that GSA / GSV are back at 2 Hz, the expected values are about 38 sentences/s instead of about
+20, about 2600 B/s, and `% of 115200 baud` in the low twenties.)
 
-- 末尾の `(want Nms, module Nms)` が**自己検証**。ここが食い違っていたら周期は通っていない
-- `% of ... baud` が 100% を超えたら溢れている。`bad:`（チェックサム不一致）と
-  `uart_lost:`（UART リングの溢れ）も同時に増える
-- `ring peak:N/8192` はその10秒間で UART リングが最も埋まったバイト数。8192 に近づいていたら
-  次の SD 停止で `uart_lost:` が出る
-- `avg B/sentence` が実測の1文長
+- The trailing `(want Nms, module Nms)` is the **self-check**. If those disagree, the interval did
+  not go through
+- If `% of ... baud` goes over 100%, it is overflowing. `bad:` (checksum mismatch) and `uart_lost:`
+  (UART ring overflow) will climb at the same time
+- `ring peak:N/8192` is the fullest the UART ring got during those 10 seconds. If it approaches
+  8192, the next SD stall will produce `uart_lost:`
+- `avg B/sentence` is the measured length of one sentence
 
-### SD 停止とリングの大きさ
+### SD stalls and ring sizes
 
-CAN も GPS も、受信は割り込みがリングに積み、**メインループが SD に書き出す**。カードが書き込みを
-抱えている間はループが戻ってこないので、その時間を両方のリングが持ちこたえる必要がある。
+For both CAN and GPS, the interrupt pushes received data into a ring and **the main loop writes it
+out to the SD card**. The loop does not come back while the card is busy with a write, so both rings
+have to survive that long.
 
-2026-10-13 のベンチ（CAN 再生 + GPS 10Hz）で、**ループが約 0.93 秒止まり** GPS が `uart_lost:455`
-を出した。当時の GPS リングは 2048 バイトで、約 2.7KB/s の 10Hz では 0.77 秒で溢れる。
-CAN リング（4096 件）は持ちこたえ、CAN は 1 件も欠けなかった。そこで GPS リングを
-**8192 バイト（約 3 秒分）**にした。
+In the 2026-10-13 bench run (CAN replay plus GPS at 10 Hz), **the loop stalled for about 0.93 s**
+and GPS reported `uart_lost:455`. The GPS ring was 2048 bytes then, which the roughly 2.7 KB/s of
+10 Hz fills in 0.77 s. The CAN ring (4096 entries) held up and not a single CAN frame was lost. So
+the GPS ring was raised to **8192 bytes (about 3 seconds' worth)**.
 
-- SD ドライバは 1 回のビジー待ちを最大 500ms で打ち切るが、`f_sync` は数セクタ書くので
-  合計ではそれを超えうる。タイムアウトにならない限りエラーは出ない
-- 止まった間に届いた GPS 文はループ復帰後にまとめて処理されるが、時刻は受信時刻なので
-  **本来の間隔のまま記録される**（上の 0.93 秒のときは書いた時刻で、4 測位が 1ms 以内に並んでいた。
-  「レコードの時刻は単調であることを保証する」の節を参照）
-- ベンチで停止を再現するには `-DSTALL_TEST_MS=1000` でビルドする。10 秒ごとにループが
-  その時間だけ止まる。**実車用のビルドには入れない**
+- The SD driver gives up on a single busy-wait after at most 500 ms, but `f_sync` writes several
+  sectors, so the total can exceed that. No error is reported unless it actually times out
+- GPS sentences that arrived during the stall get processed in a batch once the loop resumes, but
+  since the timestamp is the arrival time, **they are recorded at their true spacing** (during the
+  0.93 s stall above they carried the write time, and 4 fixes landed within 1 ms — see the section
+  "Record timestamps are guaranteed to be monotonic")
+- To reproduce a stall on the bench, build with `-DSTALL_TEST_MS=1000`. The loop then halts for that
+  long every 10 seconds. **Do not put it in a build for the bike**
 
-ループ 1 周が `LOOP_STALL_WARN_MS`（200ms）以上かかると記録する（↓ は書式の例で、実測値ではない）:
+Any pass of the loop taking `LOOP_STALL_WARN_MS` (200 ms) or more is logged (the following is a
+format example, not a measured value):
 
 ```
 main loop stalled 934ms (records 0, gps 0, sync 934, other 0 ms). gps ring peak:2520/8192. stalls so far:1 longest:934ms
 ```
 
-- 括弧内はどこで止まったか。`records` は CAN と GPS のレコードの書き込み（16KB ごとの
-  `f_write`）、`gps` は GPS 文の解析（とその途中のデバッグログ）、`sync` は毎秒の `f_sync`、
-  `other` はそれ以外のデバッグログの書き込みなど
-- この行もカードへの書き込みなので **10秒に1行まで**。件数と最長は `status:` 行の
-  `stalls:` / `longest:` に出続ける
-- カードが無い間（再マウントのリトライ中）は数えない
+- The parenthesized part says where the time went. `records` is writing CAN and GPS records (the
+  `f_write` every 16 KB), `gps` is parsing GPS sentences (and any debug logging in between), `sync`
+  is the per-second `f_sync`, and `other` is everything else, such as other debug-log writes
+- This line is itself a write to the card, so it appears **at most once per 10 seconds**. The count
+  and the longest value keep showing up as `stalls:` / `longest:` on the `status:` line
+- Time spent with no card (while retrying the mount) is not counted
 
-### 書き込みの単位（16KB、セクタ境界）
+### The write unit (16 KB, on sector boundaries)
 
-ベンチで計測した停止 2 件（895ms・375ms）は、どちらも `records`、つまり当時の
-**512 バイトごとの単発書き込み（CMD24）**の中で起きていた。そこで書き方を変えた（`logger.c`）:
+The two stalls measured on the bench (895 ms and 375 ms) both happened inside `records`, which at
+the time meant **a single 512-byte write (CMD24)**. So the way writing works was changed
+(`logger.c`):
 
-- **16KB（1024 レコード、32 セクタ）溜めてから 1 回で書く。** ファイル位置がセクタ境界にあれば
-  FatFs は自分のセクタバッファを通さず `disk_write` を複数セクタで呼ぶので、ドライバの
-  ACMD23（事前消去ヒント）＋ CMD25 の連続書き込みになる。毎秒約 36 回の単発書き込みが約 1 回になる
-- **ファイル位置を常にセクタ境界に保つ。** 毎秒の `logger_sync()` と最初の測位でのリネームは
-  **完全なセクタだけ**を書き、端数（32 レコード未満）はバッファに残す。以前は毎秒の sync が半端な
-  セクタを書き、次の書き込みで同じセクタをもう一度書かせていた
-- IG OFF の `logger_shutdown()` とアンマウントは端数まで全部書く（最後なので境界は要らない）
+- **Accumulate 16 KB (1024 records, 32 sectors) and write it in one go.** When the file position is
+  on a sector boundary, FatFs bypasses its own sector buffer and calls `disk_write` for multiple
+  sectors, which in the driver becomes ACMD23 (pre-erase hint) plus a CMD25 multi-block write. About
+  36 single writes per second become about one
+- **Keep the file position on a sector boundary at all times.** The per-second `logger_sync()` and
+  the rename on the first fix write **only whole sectors**, leaving the remainder (fewer than 32
+  records) in the buffer. Previously the per-second sync wrote a partial sector, which made the next
+  write rewrite the same sector
+- `logger_shutdown()` on IG OFF, and unmounting, write everything including the remainder (it is the
+  end, so no boundary is needed)
 
-代わりに、異常断電で失うのは「直前の `f_sync` 以降（最大約 1 秒）」に**端数の 31 レコード
-（数十 ms）**が加わる。
+In exchange, an unexpected power loss now costs "everything since the last `f_sync` (up to about one
+second)" plus **the remaining 31 records (tens of milliseconds)**.
 
-停止はカード内部の都合でも起きるので、これでゼロになるわけではない。効果は `stalls:` /
-`longest:` で比べる。比べるときは、同じ再生を何度か繰り返すこと（停止は 30 秒の再生で 0〜1 回と散発的）。
+Stalls also happen for reasons internal to the card, so this does not take them to zero. Compare the
+effect with `stalls:` / `longest:`. When comparing, repeat the same replay several times — stalls
+are sporadic, 0 to 1 per 30 seconds of replay.
 
-### 文ごとの頻度（GSA / GSV は 2Hz）
+### Per-sentence rates (GSA / GSV at 2 Hz)
 
-ログの中身として要るのは GGA と RMC だけなので**この2つだけ毎測位**。GSA と GSV は診断用なので
-**5測位ごと**に落としている（100ms × 5 = **2Hz**）。GLL と VTG は GGA / RMC の内容と重複するので停止。
+The log itself only needs GGA and RMC, so **only those two run on every fix**. GSA and GSV are
+diagnostic, so they are dropped to **every fifth fix** (100 ms × 5 = **2 Hz**). GLL and VTG
+duplicate what GGA / RMC already carry, so they are off.
 
-**2Hz なのは妥協ではなく上限。** PMTK314 の値は「測位レートの分周比」で、
-ガイドが定義する**最大は 5**（`5 - Output once every five position fixes`）。
-測位が 10Hz なので、**5分周の 2Hz より遅くは指定できない**。
-衛星が何個見えているかを知るには 2Hz で十分すぎる。
+**2 Hz is not a compromise but the limit.** A PMTK314 value is a "divider of the fix rate" and the
+guide defines **5 as the maximum** (`5 - Output once every five position fixes`). With fixes at
+10 Hz, **nothing slower than 2 Hz (divide by 5) can be requested**. 2 Hz is more than enough to know
+how many satellites are visible.
 
-帯域は 115200 にしたので問題にならない:
+Bandwidth is not a concern now that the link is at 115200:
 
-| 文 | 頻度 | 実測/概算 |
+| Sentences | Rate | Measured / estimated |
 |---|---|---|
-| GGA + RMC | 10Hz | **1440 B/s**（実測）|
-| GSA + GSV | 2Hz | 約 1200 B/s（概算）|
-| 合計 | | 約 2600 B/s = **115200 の約23%** |
+| GGA + RMC | 10 Hz | **1440 B/s** (measured) |
+| GSA + GSV | 2 Hz | about 1200 B/s (estimated) |
+| Total | | about 2600 B/s = **about 23% of 115200** |
 
-GSA / GSV が戻ったことで、status 行の **`sats used` / `view` / `tracked` / `best snr` /
-`mode:3D` が再び埋まる**（止めていた間は 0 のままだった）。測位が遅いときの切り分けは
-これがないと始まらないので、帯域が許すなら戻すのが正しい。
+With GSA / GSV back, the status line's **`sats used` / `view` / `tracked` / `best snr` / `mode:3D`
+are populated again** (they stayed 0 while those sentences were off). Diagnosing a slow fix is
+impossible without them, so bringing them back is the right call if the bandwidth allows.
 
-> `gps_rate` を 1000（1Hz）にすると GSA / GSV は 5分周で **0.2Hz** まで落ちる。
-> 分周比は測位レートに対する相対値なので、遅い周期で使うなら
-> `GPS_SENTENCES_WANTED`（`config.h`）の 4・5 番目のフィールドを 1 に戻すとよい。
+> Setting `gps_rate` to 1000 (1 Hz) drops GSA / GSV to **0.2 Hz** at a divider of 5. The divider is
+> relative to the fix rate, so for slow intervals it is worth setting the 4th and 5th fields of
+> `GPS_SENTENCES_WANTED` (in `config.h`) back to 1.
 
 
-## 設定ファイル `MOTORECO.CFG`
+## The settings file `MOTORECO.CFG`
 
-SDカードのルートに置く**隠しファイル**。無ければ起動時に既定値で自動生成する。
-`#` で始まる行はコメント。テキストエディタで編集できる。
+A **hidden file** in the root of the SD card. If it is missing, it is created with defaults at
+startup. Lines starting with `#` are comments. It can be edited in any text editor.
 
 ```ini
 # MotoRecoPico settings
@@ -490,182 +535,206 @@ gps_rate = 100
 gps_baud = 115200
 ```
 
-> このブロックは `settings_default_file_text()`（[`src/settings.c`](src/settings.c)）が書く内容そのもの。
+> That block is exactly what `settings_default_file_text()`
+> ([`src/settings.c`](src/settings.c)) writes.
 
-| キー | 内容 | 既定 |
+| Key | Meaning | Default |
 |---|---|---|
-| `timezone` | UTC からのオフセット。`+9` / `-5` / `+5:30` / `+5.5` を受け付ける。`.dat` のファイル名とデバッグログの時刻に効く | `+9`（JST）|
-| `gps_rate` | 測位間隔 [ms]。100〜10000。拒否されたら自動で上げるので**試す最速値**。`0` で受信機に何も送らない | `100`（10Hz）|
-| `gps_baud` | NMEA のボーレート。ガイドの表の値のみ。`0` で変更しない。`9600` と書けば元に戻せる | `115200` |
+| `timezone` | Offset from UTC. Accepts `+9`, `-5`, `+5:30`, `+5.5`. Affects `.dat` file names and debug-log timestamps | `+9` (JST) |
+| `gps_rate` | Fix interval in ms, 100–10000. Refusals climb automatically, so this is **the fastest value to try**. `0` sends nothing to the receiver | `100` (10 Hz) |
+| `gps_baud` | NMEA baud rate. Only the values in the guide's table. `0` leaves it unchanged. Write `9600` to go back | `115200` |
 
-> **既存カードは書き足しが必要。** 旧ファームが書いた `MOTORECO.CFG` には `gps_rate = 1000` があり
-> `gps_baud` の行がない。そのカードは **1Hz / 9600 のまま**になるので、ファイルを消して
-> 再生成させるか、上の2行を手で書き足すこと。
+> **Existing cards need two lines added.** A `MOTORECO.CFG` written by older firmware has
+> `gps_rate = 1000` and no `gps_baud` line, so such a card stays **at 1 Hz / 9600**. Either delete
+> the file and let it be regenerated, or add the two lines above by hand.
 
-- `key = value` でも `key value` でも通る。キーは**大文字小文字を区別しない**
-- 読めない行は**その行だけ**無視してデバッグログに残す。ファイル全体を捨てたりはしない
-- 正常時のログ: `settings: timezone +09:00`
-- カードを差し替えると、その**カードの設定ファイルが読み直される**（マウントのたびに読む）
+- Both `key = value` and `key value` are accepted. Keys are **case-insensitive**
+- An unparseable line is ignored **on its own** and recorded in the debug log. The whole file is
+  never discarded
+- A healthy log line looks like: `settings: timezone +09:00`
+- Swapping cards **re-reads that card's settings file** (it is read on every mount)
 
-### 廃止された `vehicle` キー
+### The retired `vehicle` key
 
-以前はエンジン回転数のデコード規則（車種）を選ぶ `vehicle` キーがあった。
-回転数によるログ確定をやめたので不要になっている。**古いファームで書かれたカードには
-この行が残っている**ため、パーサは `vehicle` を「廃止済み」として黙って読み飛ばす。
-手で消さなくても、起動のたびに警告が出ることはない。
+There used to be a `vehicle` key that selected the engine-speed decoding rule (the model of bike).
+It became unnecessary when finalization by engine speed was dropped. **Cards written by older
+firmware still have that line**, so the parser silently skips `vehicle` as "retired". There is no
+need to delete it by hand, and no warning on every boot.
 
-## ピン割当（基板 v4.1）
+## Pin assignment (board v4.1)
 
-正典は [`docs/netlist.md`](../docs/netlist.md) 3.7節。`src/config.h` がこれに追従する。
+Canonically defined in [`../docs/netlist.md`](../docs/netlist.md) §3.7. `src/config.h` follows it.
 
-| 機能 | GPIO | 備考 |
+| Function | GPIO | Notes |
 |---|---|---|
 | microSD | GP2/3/4/5 | **SPI0** SCK/MOSI/MISO/CS |
-| SD カード検出 | GP7 | 外部プルアップ R13 |
-| GPS UART0 | GP0（TX）/ GP1（RX）| GP1 にモジュールの TXD（オレンジ）|
-| GPS PPS | GP6 | 未使用（入力のまま）|
-| LED 緑 | GP8 | Low で点灯 |
+| SD card detect | GP7 | External pull-up R13 |
+| GPS UART0 | GP0 (TX) / GP1 (RX) | The module's TXD (orange) goes to GP1 |
+| GPS PPS | GP6 | Unused (left as an input) |
+| LED, green | GP8 | Lit when driven low |
 | CAN MCP25625 | GP10/11/12/13 | **SPI1** SCK/MOSI/MISO/CS |
 | CAN INT / STBY / RESET | GP9 / GP20 / GP21 | |
-| IG 検出 | GP28 (ADC2) | 回転で変わらず。**ON/OFF のみ**で電池電圧は測れない |
+| IG detect | GP28 (ADC2) | Does not change with engine speed. **ON/OFF only** — battery voltage cannot be measured |
 
-**GP14〜GP19・GP22・GP26・GP27 は基板上で GND に落ちている。絶対に出力にしないこと。**
+**GP14–GP19, GP22, GP26 and GP27 are tied to GND on the board. Never make them outputs.**
 
-v4 からの差分は Pico の 180° 回転によるもので、**SPI インスタンスも入れ替わっている**
-（SD が SPI1→**SPI0**、CAN が SPI0→**SPI1**）。ピンだけ直して SPI を直し忘れる事故を防ぐため、
-`sd_spi.c` と `mcp25625.c` に「そのピンが本当にそのインスタンスの SCK/TX/RX か」を
-`_Static_assert` で検査してある（RP2350 は 8ピンごとにインスタンス、4ピンごとに機能が巡回する）。
+The differences from v4 come from rotating the Pico 180°, and **the SPI instances swapped with it**
+(SD went SPI1 → **SPI0**, CAN went SPI0 → **SPI1**). To prevent the accident of fixing the pins and
+forgetting the instances, `sd_spi.c` and `mcp25625.c` carry `_Static_assert` checks that each pin
+really is that instance's SCK/TX/RX (on the RP2350 the instance cycles every 8 pins and the function
+every 4).
 
-**stdio を UART に出してはいけない。** GP0/GP1 は SDK の stdio UART の既定ピンでもあるため、
-有効にすると printf が GPS モジュールの受信端子に流れ込む。デバッグ出力は USB CDC のみ。
+**stdio must not go to the UART.** GP0/GP1 are also the SDK's default stdio UART pins, so enabling
+it would pour printf into the GPS module's receive pin. Debug output is USB CDC only.
 
-## LED（緑・GP8、Low で点灯）
+## LED (green, GP8, lit when low)
 
-| 表示 | 意味 |
+| Indication | Meaning |
 |---|---|
-| 点灯 | 記録中 |
-| 1Hz 点滅 | 記録中だが GPS 未測位 |
-| 高速点滅 | カードが使えない（応答なし／マウント失敗／書き込みエラー）。5秒ごとに再試行中 |
-| 消灯 | IG OFF を検出してログを閉じた後（通常は直後に電源が落ちる）|
+| Solid | Recording |
+| 1 Hz blink | Recording but no GPS fix yet |
+| Fast blink | The card is unusable (no response, mount failure, or write error). Retrying every 5 seconds |
+| Off | IG OFF was detected and the log is closed (power normally drops right after) |
 
-## GPS の状態ログ
+## GPS status logging
 
-測位に時間がかかるとき、原因は「配線・ボーレートが違って一切受信していない」「アンテナが空を見ていない」
-「単にコールドスタート中」のどれかで、**どれも「未測位」としか見えない**。区別できるよう、
-受信機自身の見え方をログに出す。
+When a fix takes a long time, the cause is one of "nothing is being received at all because the
+wiring or baud rate is wrong", "the antenna is not looking at the sky", or "it is simply still cold
+starting" — and **all three look identical from the outside, as "no fix"**. To tell them apart, the
+receiver's own view of the world is written to the log.
 
-未測位の間は `GPS_REPORT_INTERVAL_MS`（既定10秒）ごとに:
+While there is no fix, every `GPS_REPORT_INTERVAL_MS` (10 s by default):
 
 ```
 gps searching after 30s: quality:0 mode:1D sats used:0 view:9 tracked:4 best snr:28 hdop:0.0 sentences:301 bad:0
 ```
 
-読み方:
+How to read it:
 
-| 症状 | 出力 | 意味 |
+| Symptom | Output | Meaning |
 |---|---|---|
-| 何も受信していない | `gps silent: nothing received on uart0 in 30s...` | 配線・電源。モジュールは測位前から喋るので、無音は受信の問題ではない |
-| 受信しているが壊れている | `sentences:0 bad:250` が増え続ける | ボーレート違い（文字化けでチェックサム不一致）|
-| `view:0 tracked:0` のまま | 衛星が1個も見えない | アンテナ面が空を向いていない、金属ケース内、モジュール不良 |
-| `view:9 tracked:1 best snr:15` | 見えてはいるが信号が弱い | 遮蔽（ビル・屋内・タンク下）。SNR 30以上が数個ないと測位しない |
-| `view:9 tracked:5 snr:30+` で待ち | 正常な取得中 | あと数十秒待てば入る（下記のコールドスタート）|
-| `module holds` が `want` と食い違う | `gps rate: ... (want 100ms, module 1000ms)` | `PMTK220` が通っていない。ボーレートか文の数を見直す |
-| 測位前に変な日付 | `gps: the receiver reports 2080-01-06 ... with no fix` | 正常な動作。測位前の受信機の推測を**捨てている**行 |
+| Nothing received at all | `gps silent: nothing received on uart0 in 30s...` | Wiring or power. The module talks before it has a fix, so silence is not a fix problem |
+| Receiving, but corrupted | `sentences:0 bad:250` keeps climbing | Wrong baud rate (garbled characters fail the checksum) |
+| `view:0 tracked:0` persists | Not a single satellite visible | The antenna face is not pointing at the sky, it is inside a metal case, or the module is faulty |
+| `view:9 tracked:1 best snr:15` | Visible, but the signal is weak | Obstruction (buildings, indoors, under the tank). It will not fix without several satellites above SNR 30 |
+| `view:9 tracked:5 snr:30+` and waiting | A healthy acquisition | Another few tens of seconds and it will fix (see the cold start below) |
+| `module holds` disagrees with `want` | `gps rate: ... (want 100ms, module 1000ms)` | `PMTK220` did not go through. Review the baud rate or the number of sentences |
+| A strange date before the fix | `gps: the receiver reports 2080-01-06 ... with no fix` | Normal behavior. That line is us **discarding** the receiver's pre-fix guess |
 
-測位した瞬間と失った瞬間にも1行ずつ出る（`gps fixed after 42s: ...` / `gps fix lost after ...`）。
+There is also a line at the moment a fix is acquired and the moment it is lost
+(`gps fixed after 42s: ...` / `gps fix lost after ...`).
 
-> **`hdop` は `%.1f` で出さない。** SDK の `printf` が信用できないため、整数2つで組み立てている
-> （`hdop_tenths()`）。`pico_printf` の `_ftoa()` は丸めた小数部がちょうど .5 に乗ったとき、
-> 隣の分枝にある `frac >= pow10[prec]` の桁上げガードを**持たない**分枝を通る。`frac` が 10 になり、
-> 小数部ループが1回余分に回って `unsigned` のカウンタが `UINT_MAX` に回り、
-> 32バイトのバッファが `'0'` で埋め尽くされる。小数点も整数部も書かれない。
+> **`hdop` is not printed with `%.1f`.** The SDK's `printf` cannot be trusted here, so it is
+> assembled from two integers (`hdop_tenths()`). When the rounded fractional part lands exactly on
+> .5, `_ftoa()` in `pico_printf` takes a branch that **lacks** the `frac >= pow10[prec]` carry guard
+> its neighbour has. `frac` becomes 10, the fractional loop runs one extra time, the `unsigned`
+> counter wraps to `UINT_MAX`, and the 32-byte buffer is filled end to end with `'0'`. Neither the
+> decimal point nor the integer part is ever written.
 >
-> 実走で `hdop:00000000000000000000000000000010` が4回出た（行の他の部分は完全に正常）。
-> 引き金は **hdop がちょうど 0.95 か 1.95 のときだけ** — 良好な測位でごく普通に出る値で、
-> 0〜100 の範囲でこの2値だけが double 演算でぴったり半分に乗る。
-> Hz 表示（`%.1f`）は測位間隔から計算され、到達し得る値はどれも安全なのでそのまま。
-`sats used` / `view` / `tracked` / `best snr` / `mode` は GSA と GSV から来るので、
-**この2文を止めると全部 0 になる**（現在は2Hz で出しているので埋まる。上記「文ごとの頻度」参照）。
-最初の1文を受信した時点でも `gps talking: first sentence '$GNGGA' at 9600 baud` を出すので、
-**配線とボーレートが合っているかは起動直後に確定できる**。
+> It showed up four times on a real ride as `hdop:00000000000000000000000000000010` (the rest of the
+> line perfectly normal). The trigger is **hdop being exactly 0.95 or 1.95** — ordinary values for a
+> good fix, and in the range 0 to 100 the only two that land exactly on a half in double arithmetic.
+> The Hz display (`%.1f`) is computed from the fix interval and every reachable value there is safe,
+> so it is left alone.
 
-### 実機で確定した配線（2026-08-14）
+`sats used` / `view` / `tracked` / `best snr` / `mode` come from GSA and GSV, so **turning those two
+sentences off zeroes all of them** (they are currently emitted at 2 Hz, so they are populated — see
+"Per-sentence rates" above). There is also a `gps talking: first sentence '$GNGGA' at 9600 baud` as
+soon as the very first sentence arrives, so **whether the wiring and baud rate are right is settled
+immediately after startup**.
 
-**ボーレートは 9600bps**（`GPS_UART_BAUD` の既定値どおり）。線色と J3 パッドの対応:
+### The wiring, confirmed on hardware (2026-08-14)
 
-| J3 パッド | シルク | 繋ぐ線 | 色 |
+**The baud rate is 9600 bps** (exactly the default of `GPS_UART_BAUD`). Wire colors to J3 pads:
+
+| J3 pad | Silkscreen | Wire | Color |
 |---|---|---|---|
-| 1 | V | VCC | 赤 |
-| 2 | G | GND | 黒 |
-| 3 | T | **RXD** | **緑** |
-| 4 | R | **TXD** | **オレンジ** |
-| 5 | P | PPS | 茶 |
+| 1 | V | VCC | Red |
+| 2 | G | GND | Black |
+| 3 | T | **RXD** | **Green** |
+| 4 | R | **TXD** | **Orange** |
+| 5 | P | PPS | Brown |
 
-**シルクの T / R は基板側から見た名前で、モジュールのピン名とは逆になる。**
-UART は交差するので、`T`（基板が送信）にはモジュールの **RXD（緑）** が付く。
-「TXD（オレンジ）を T に」と読んで配線すると出力どうしが衝突し、1バイトも受信できない
-（実際にこれが起きた）。正典は [`docs/netlist.md`](../docs/netlist.md) 3.5節。
+**The T / R on the silkscreen are named from the board's point of view, which is the opposite of the
+module's pin names.** A UART crosses over, so `T` (the board transmits) takes the module's
+**RXD (green)**. Reading it as "orange TXD goes to T" shorts two outputs together and not a single
+byte is received (which is exactly what happened). Canonically defined in
+[`../docs/netlist.md`](../docs/netlist.md) §3.5.
 
-### 測位が遅いこと自体の原因
+### Why the fix itself is slow
 
-**J3 はバックアップ電源を持たない**（`docs/netlist.md` の J3 は VCC / GND / TXD / RXD / PPS の5線のみ）。
-つまり**キーOFF のたびに軌道暦を失い、毎回コールドスタートになる**。
-一般的な受信機のコールドスタートは晴天・見晴らしの良い場所で 30〜45秒、
-条件が悪ければ数分かかる。ホットスタートなら1〜2秒で入るので、この差は大きい。
+**J3 has no backup supply** (J3 in `docs/netlist.md` is just the five wires VCC / GND / TXD / RXD /
+PPS). That means **the ephemeris is lost on every key-off and every start is a cold start**. A cold
+start on a typical receiver takes 30–45 s under clear sky with a good view, and minutes in poor
+conditions. A hot start fixes in one or two seconds, so the difference matters.
 
-改善するならハードウェア側の変更になる:
-- GT-502MGG-N にバックアップ端子があるなら、常時12V系からそこへ給電する（データシート 2.1節を要確認）
-- あるいは J3.VCC を常時電源にする（受信機が待機電流を食い続けるためバッテリー上がりとの兼ね合い）
+Improving it means a hardware change:
 
-**現状のログはこの判断材料を出すためのもの**で、`gps fixed after Ns` の N が毎回30〜45秒なら
-コールドスタートそのもの、毎回数分なら遮蔽かアンテナの問題、という切り分けができる。
+- If the GT-502MGG-N has a backup pin, feed it from the permanent 12V rail (check section 2.1 of the
+  datasheet)
+- Or make J3.VCC a permanent supply (weighed against a flat battery, since the receiver keeps
+  drawing standby current)
 
-## カード検出（GP7）の扱い
+**The current logging exists to provide the evidence for that decision**: if the N in
+`gps fixed after Ns` is 30–45 s every time, it is the cold start itself; if it is minutes every
+time, it is obstruction or an antenna problem.
 
-**カード検出ピン（GP7）は判断材料であって判断者ではない。** カードの有無は「SPI で応答するか」で決める
-（[`sd_spi.c`](src/sd_spi.c) の `sd_init()` は検出線を見ずに必ず試す）。理由は3つ:
+## How card detect (GP7) is treated
 
-- 検出スイッチはソケットで**最も小さいパッド2枚（9番と10番）**に載っており、はんだ不良の確率が高い
-- 接点が「挿入で閉」なのか「挿入で開」なのかは **DM3AT の図面に明記がない**（`SD_CD_INSERTED_LEVEL` は仮定）
-- 二輪の振動でチャタれば、正常なカードを切り離してしまう
+**The card detect pin (GP7) is evidence, not the judge.** Whether a card is present is decided by
+"does it answer on SPI" (`sd_init()` in [`sd_spi.c`](src/sd_spi.c) always tries, without looking at
+the detect line). Three reasons:
 
-`SD_CD_INSERTED_LEVEL` を間違えていても**記録は普通に動く**。失うのは「走行中の抜去を早期に検出する」機能だけで、
-それも実際に抜かれれば次の書き込み失敗で検出される。
+- The detect switch sits on **the two smallest pads of the socket (9 and 10)**, where a bad solder
+  joint is most likely
+- Whether the contact closes or opens on insertion is **not stated in the DM3AT drawing**
+  (`SD_CD_INSERTED_LEVEL` is an assumption)
+- If it chatters under the vibration of a motorcycle, it would disconnect a perfectly good card
 
-走行中の抜去チェックは、**一度でも「検出線が挿入と言っている状態で実際にカードが応答した」場合にのみ**有効になる
-（`sd_detect_reliable()`）。食い違ったまま動いた場合は起動時に一度だけ警告を出す:
+**Recording works normally even with `SD_CD_INSERTED_LEVEL` wrong.** All that is lost is early
+detection of a card pulled out while riding, and even that gets caught by the next failed write.
+
+The removal check while riding only becomes active once **the detect line has said "inserted" while
+a card actually answered, at least once** (`sd_detect_reliable()`). If they disagree and it works
+anyway, a single warning is issued at startup:
 
 ```
 note: card detect (GP7) reads empty with a working card. ignoring it.
       check pad 9/10 solder, or flip SD_CD_INSERTED_LEVEL
 ```
 
-## データ量の目安（同じ実走ログより）
+## Data volume (from the same real-world log)
 
-全 CAN で **約 1160 レコード/秒（約 18.5 KB/秒）**、33 種類の ID。
-27分の走行で 30MB。受信リング 4096 レコードはこのレートで **約 3.5 秒分**にあたり、
-SD カードの書き込みが数百 ms 詰まっても溢れない。
+All CAN comes to **about 1160 records/s (about 18.5 KB/s)** across 33 distinct IDs. A 27-minute ride
+is 30 MB. At that rate the 4096-record receive ring is **about 3.5 seconds' worth**, so it does not
+overflow even when the SD card blocks for hundreds of milliseconds.
 
-GPS はこれに対して**桁が違う**。1Hz なら毎秒 2 レコード（位置 + 高度/速度）で 32 B/秒、
-10Hz でも毎秒 20 レコードの **320 B/秒**にすぎず、CAN の 18.5 KB/秒に対して 2% 以下。
-GSA / GSV は `.dat` に一切書かれない（診断専用）ので、**カードに対しては完全に無料**。
-**周期を上げてもカードが律速になることはない。**
-ただし `.dat` 内の GPS 点は 10 倍になるので、ビューア側で約1Hz を前提にした処理
-（平滑化、速度の微分）があれば最初の高速ログで見ておく価値はある。
+GPS is **an order of magnitude away** from that. At 1 Hz it is 2 records per second (position plus
+altitude/speed), 32 B/s; even at 10 Hz it is 20 records per second, **320 B/s**, under 2% of CAN's
+18.5 KB/s. GSA / GSV are never written to the `.dat` at all (they are purely diagnostic), so they
+are **completely free as far as the card is concerned**. **Raising the fix rate will never make the
+card the bottleneck.**
 
-## 実機で最初に確認すること
+What does change is that there are ten times as many GPS points inside the `.dat`, so if the viewer
+has any processing that assumes about 1 Hz (smoothing, differentiating speed), it is worth a look at
+the first high-rate log.
 
-1. USB シリアルに `MotoRecoPico starting` → `logging to '...'` → `can controller ready` が出るか
-2. CAN が1フレームも来ない場合: `config.h` の `CAN_BITRATE`（既定 500kbps）と、
-   終端抵抗 R8（`docs/netlist.md` の「CAN 終端は常時有効」）を疑う
-3. カードが使えない場合、USB シリアルのメッセージで切り分ける:
-   - `no card: the slot reads empty and nothing answered on the card spi` → SPI 配線（MISO/MOSI/CS）、
-     カードの挿し込み不足、3V3 の供給
-   - `a card is in the slot but no log file could be opened...` → **まず exFAT を疑う**。
-     32GB超のカードは工場出荷時 exFAT で、`FF_FS_EXFAT 0` のため弾かれる。FAT32 で再フォーマット
-   - `note: card detect (GP7) reads empty with a working card` → 記録は動いている。
-     パッド 9/10 のはんだと `SD_CD_INSERTED_LEVEL` の極性を後で確認すればよい
-4. GPS は `gps: module is at ... baud` → `gps: module holds ...ms fixes ... as asked` まで出るか。
-   `module holds` が `want` と食い違っていたら周期が通っていない
-5. キーOFF で `trigger: ignition off (...)` が出て、ファイル名が終了時刻になっているか
-6. 記録した `.dat` を MotoRecoViewer で開き、Pi 版のログと同じように描けるか
+## What to check first on hardware
+
+1. Does USB serial show `MotoRecoPico starting` → `logging to '...'` → `can controller ready`?
+2. If not a single CAN frame arrives: suspect `CAN_BITRATE` in `config.h` (500 kbps by default) and
+   the termination resistor R8 (see "CAN termination is always on" in `docs/netlist.md`)
+3. If the card is unusable, the USB serial message tells you which case it is:
+   - `no card: the slot reads empty and nothing answered on the card spi` → the SPI wiring
+     (MISO/MOSI/CS), the card not fully seated, or the 3V3 supply
+   - `a card is in the slot but no log file could be opened...` → **suspect exFAT first**. Cards
+     over 32 GB ship formatted as exFAT, which is rejected because of `FF_FS_EXFAT 0`. Reformat as
+     FAT32
+   - `note: card detect (GP7) reads empty with a working card` → recording is working. The solder on
+     pads 9/10 and the polarity of `SD_CD_INSERTED_LEVEL` can be checked later
+4. For GPS, does it get as far as `gps: module is at ... baud` → `gps: module holds ...ms fixes ...
+   as asked`? If `module holds` disagrees with `want`, the interval did not go through
+5. Does turning the key off produce `trigger: ignition off (...)`, with the file named after the end
+   time?
+6. Does the recorded `.dat` open in MotoRecoViewer and draw the same way as a log from the Pi
+   version?

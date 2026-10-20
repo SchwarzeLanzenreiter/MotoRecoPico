@@ -1,178 +1,188 @@
-﻿# 部品調達先（全41点・手はんだ前提）
+﻿# Parts sourcing (all 41 parts, assuming hand soldering)
 
-全部品を手はんだする前提の購入先一覧。リンクは**実在を確認したページのみ**記載する。
-空欄は「そのベンダーで確認できなかった」という意味で、無いとは限らない。
+A list of where to buy every part, assuming all of them are hand soldered. Links are given **only
+for pages whose existence has been confirmed**. A blank cell means "could not be confirmed at that
+vendor", not that it does not exist.
 
-designator は41点（v4）。値が同じものをまとめると **25品目**。
-**v2 で R5・D4・C12 削除**、**v3 で C13/R15 追加**、**v4（2026-08-14）で U1（M78AR05）を廃止し U4/L1/C14/C15/C16 を追加**した。
-D4 の行は既に買った在庫の記録として残す。
+There are 41 designators (v4). Grouped by identical value, that is **25 line items**.
+**R5, D4 and C12 were removed in v2**, **C13 and R15 were added in v3**, and **in v4 (2026-08-14)
+U1 (the M78AR05) was retired and U4/L1/C14/C15/C16 were added.** The D4 row is kept as a record of
+stock already purchased.
 
----
-
-## 先に結論: 秋月＋マルツの2社で全部揃う
-
-**マルツエレックは DigiKey の国内唯一の正規代理店**で、DigiKey 取扱いの
-**600万点以上を1個から、DigiKey と同価格で**買える。送料は全国一律 ¥240
-（**¥3,000 以上で無料**）、国内発送・国内決済。
-
-つまり **下表の DigiKey 欄にあるものは、ほぼそのままマルツで買える**。
-海外発注・国際送料・通関を避けたいなら、
-
-> **秋月電子（国内在庫の安い部品）＋ マルツ（DigiKey 経由の海外部品）**
-
-の2社で完結する。マルツの型番検索はこの形式:
-
-```
-https://www.marutsu.co.jp/GoodsListNavi.jsp?q=＜型番＞
-```
-
-マルツは[秋月電子通商の製品も一部取り扱っている](https://www.marutsu.co.jp/MakerCategoryList.jsp?narrow1Cond=%E7%A7%8B%E6%9C%88%E9%9B%BB%E5%AD%90%E9%80%9A%E5%95%86)が、
-品揃えは秋月本体に及ばない。
+> Note for readers outside Japan: this list is written around two Japanese distributors, Akizuki
+> Denshi and Marutsu Elec. Marutsu is DigiKey's authorized distributor in Japan, so wherever a
+> DigiKey part number appears, DigiKey or Mouser can be used directly instead.
 
 ---
 
-## 1. 抵抗（1608 / 0603、全13点・5品目）
+## Conclusion first: Akizuki plus Marutsu covers everything
 
-| 値 | 使用箇所 | 秋月電子 | マルツ / Mouser / DigiKey |
+**Marutsu Elec is the only authorized DigiKey distributor in Japan**, so the
+**6 million-plus DigiKey line items can be bought one at a time, at DigiKey prices**. Shipping is a
+flat ¥240 nationwide (**free above ¥3,000**), shipped and paid for domestically.
+
+In other words, **nearly everything in the DigiKey column below can be bought from Marutsu as-is**.
+To avoid ordering from overseas, international shipping and customs, the whole list closes with two
+vendors:
+
+> **Akizuki Denshi (cheap parts in domestic stock) + Marutsu (overseas parts via DigiKey)**
+
+Marutsu's part-number search takes this form:
+
+```
+https://www.marutsu.co.jp/GoodsListNavi.jsp?q=<part number>
+```
+
+Marutsu also [carries some of Akizuki Denshi's products](https://www.marutsu.co.jp/MakerCategoryList.jsp?narrow1Cond=%E7%A7%8B%E6%9C%88%E9%9B%BB%E5%AD%90%E9%80%9A%E5%95%86),
+but the selection does not reach that of Akizuki itself.
+
+---
+
+## 1. Resistors (1608 / 0603, 13 parts, 5 line items)
+
+| Value | Where it is used | Akizuki Denshi | Marutsu / Mouser / DigiKey |
 |---|---|---|---|
-| **100kΩ** ×3 | R1, R2, R3 | [1/10W 100個入（130357）](https://akizukidenshi.com/catalog/g/g130357/) | `RC0603FR-07100KL` 等 |
-| **22kΩ** ×1 | R4 | ✗（小分けなし） | `RC0603FR-0722KL` 等 |
-| **10kΩ** ×7 | R6, R7, R10-R13, **R15** | [1/10W 100個入（130355）](https://akizukidenshi.com/catalog/g/g130355/) | `RC0603FR-0710KL` 等 |
-| **120Ω** ×1 | R8（CAN終端） | △ [5000個リール ¥980（130332）](https://akizukidenshi.com/catalog/g/g130332/) | `RC0603FR-07120RL` 等 |
-| **1kΩ** ×1 | R14 | △ [5000個リール ¥980（114122）](https://akizukidenshi.com/catalog/g/g114122/) | `RC0603FR-071KL` 等 |
+| **100 kΩ** ×3 | R1, R2, R3 | [1/10 W, pack of 100 (130357)](https://akizukidenshi.com/catalog/g/g130357/) | `RC0603FR-07100KL` etc. |
+| **22 kΩ** ×1 | R4 | ✗ (no small pack) | `RC0603FR-0722KL` etc. |
+| **10 kΩ** ×7 | R6, R7, R10-R13, **R15** | [1/10 W, pack of 100 (130355)](https://akizukidenshi.com/catalog/g/g130355/) | `RC0603FR-0710KL` etc. |
+| **120 Ω** ×1 | R8 (CAN termination) | △ [reel of 5000, ¥980 (130332)](https://akizukidenshi.com/catalog/g/g130332/) | `RC0603FR-07120RL` etc. |
+| **1 kΩ** ×1 | R14 | △ [reel of 5000, ¥980 (114122)](https://akizukidenshi.com/catalog/g/g114122/) | `RC0603FR-071KL` etc. |
 
-**秋月の1608小分けは 10kΩ と 100kΩ しか無い。** 22kΩ・120Ω・1kΩ は5000個リール（¥980）に
-なるので、この3点はマルツで単品購入する方が現実的（Yageo RC0603 系が1本 ¥5〜10）。
+**Akizuki only stocks small packs of 1608 in 10 kΩ and 100 kΩ.** 22 kΩ, 120 Ω and 1 kΩ come only as
+reels of 5000 (¥980), so for those three it is more realistic to buy singles from Marutsu (Yageo
+RC0603 parts are ¥5–10 each).
 
-どうしても秋月1社で済ませたいなら
-[1608 チップ抵抗サンプルブック E24（115657）](https://akizukidenshi.com/catalog/g/g115657/)
-が E24 全値 各50本入りで ¥8,900。5品目のためだけには高い。
+If you really want to buy from Akizuki alone, the
+[1608 chip resistor sample book, E24 (115657)](https://akizukidenshi.com/catalog/g/g115657/)
+has 50 pieces of every E24 value for ¥8,900. That is expensive for five line items.
 
-## 2. コンデンサ（1608 / 0603、全10点・3品目）
+## 2. Capacitors (1608 / 0603, 10 parts, 3 line items)
 
-| 値 | 使用箇所 | 秋月電子 | マルツ / Mouser / DigiKey |
+| Value | Where it is used | Akizuki Denshi | Marutsu / Mouser / DigiKey |
 |---|---|---|---|
-| **100nF / 50V** ×5 | C2, C3, C4, C5, C10 | **[0.1µF 100V X7R（114559）](https://akizukidenshi.com/catalog/g/g114559/)** ← 推奨 | `CC0603KRX7R9BB104` 等 |
-| | | [0.1µF 50V X8L（116143）](https://akizukidenshi.com/catalog/g/g116143/) も可 | |
-| **22pF / 50V** ×2 | C7, C8（水晶負荷） | [22pF 50V CH 40個入（P-11626）](https://www.akizukidenshi.com/catalog/g/gP-11626/) | `CC0603JRNPO9BN220` 等 |
-| **10µF** ×3 | C6（V5）, C11（3V3）, **C13（G–S間・要25V）** | [10µF 35V X5R（113161）](https://akizukidenshi.com/catalog/g/g113161/) / [10µF 16V X5R（117202）](https://akizukidenshi.com/catalog/g/g117202/) | [GRM188R61E106KA73D（Mouser）](https://www.mouser.com/ProductDetail/Murata-Electronics/GRM188R61E106KA73D?qs=5aG0NVq1C4z8ebxPkQZf9A%3D%3D) / [同（DigiKey）](https://www.digikey.com/en/products/detail/murata-electronics/GRM188R61E106KA73D/9867922) |
+| **100 nF / 50 V** ×5 | C2, C3, C4, C5, C10 | **[0.1 µF 100 V X7R (114559)](https://akizukidenshi.com/catalog/g/g114559/)** ← recommended | `CC0603KRX7R9BB104` etc. |
+| | | [0.1 µF 50 V X8L (116143)](https://akizukidenshi.com/catalog/g/g116143/) also works | |
+| **22 pF / 50 V** ×2 | C7, C8 (crystal load) | [22 pF 50 V CH, pack of 40 (P-11626)](https://www.akizukidenshi.com/catalog/g/gP-11626/) | `CC0603JRNPO9BN220` etc. |
+| **10 µF** ×3 | C6 (V5), C11 (3V3), **C13 (G–S, needs 25 V)** | [10 µF 35 V X5R (113161)](https://akizukidenshi.com/catalog/g/g113161/) / [10 µF 16 V X5R (117202)](https://akizukidenshi.com/catalog/g/g117202/) | [GRM188R61E106KA73D (Mouser)](https://www.mouser.com/ProductDetail/Murata-Electronics/GRM188R61E106KA73D?qs=5aG0NVq1C4z8ebxPkQZf9A%3D%3D) / [same part (DigiKey)](https://www.digikey.com/en/products/detail/murata-electronics/GRM188R61E106KA73D/9867922) |
 
-> **秋月の [0.1µF 50V「F特性」（113374）](https://akizukidenshi.com/catalog/g/g113374/) は買わないこと。**
-> JIS の F 特性は Y5V 相当で、温度で **+22%／−82%** も動く。デカップリングには使えない。
-> **X7R か X8L** を選ぶこと。上表の 114559（100V X7R）が耐圧にも余裕があって一番安全。
+> **Do not buy Akizuki's [0.1 µF 50 V "F characteristic" (113374)](https://akizukidenshi.com/catalog/g/g113374/).**
+> The JIS F characteristic is equivalent to Y5V and moves by **+22% / −82%** over temperature. It
+> cannot be used for decoupling. Choose **X7R or X8L**. The 114559 above (100 V X7R) is the safest,
+> with headroom on the voltage rating as well.
 
-> 22pF（P-11626）は調査時点で**在庫切れ表示**だった。入手できない場合は
-> C0G / NP0 特性の 1608 22pF なら何でもよい。
+> 22 pF (P-11626) was shown as **out of stock** when this was researched. If you cannot get it, any
+> 1608 22 pF with C0G / NP0 characteristics will do.
 
-> **C13 は 25V 以上を選ぶこと（v3）。** ロードダンプ時に |Vgs| が最大約13V かかるため
-> 16V 品（117202）は不可。秋月なら 35V 品（113161）、海外なら GRM188R61E106（25V）。
-> C6・C11 も同じ 35V/25V 品で統一すれば1品目で済む。
+> **C13 must be rated 25 V or more (v3).** During a load dump |Vgs| reaches about 13 V, so the 16 V
+> part (117202) is not acceptable. Use the 35 V part (113161) from Akizuki, or GRM188R61E106 (25 V)
+> from overseas. Standardizing C6 and C11 on the same 35 V / 25 V part makes it a single line item.
 
-## 3. 半導体・ダイオード（7品目）
+## 3. Semiconductors and diodes (7 line items)
 
-| Ref | 部品 | 秋月電子 | **マルツ** | Mouser | DigiKey |
+| Ref | Part | Akizuki Denshi | **Marutsu** | Mouser | DigiKey |
 |---|---|---|---|---|---|
-| **D1, D3** | ショットキー 40V/1A **SOD-123** | ✗（後述） | [`1N5819HW-7-F` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=1N5819HW-7-F) | [1N5819HW-7-F](https://www.mouser.com/ProductDetail/Diodes-Incorporated/1N5819HW-7-F?qs=NQ47qNm99eDyWTEd07miYA%3D%3D) | [1N5819HW-7-F](https://www.digikey.com/product-detail/en/1N5819HW-7-F/1N5819HW-FDICT-ND/815283) |
-| **D2** | SMAJ16A（SMA / 400W） | ✗ | **[SMAJ16A（Littelfuse）](https://www.marutsu.co.jp/pc/i/2079887/)** | `SMAJ16A` で検索 | [SMAJ16A](https://www.digikey.com/en/products/detail/littelfuse-inc/SMAJ16A/762278) |
-| ~~D4~~ | ツェナー 3.3V（**v2で廃止**・購入不要） | △ [UDZV3.6B **3.6V**（107435）](https://akizukidenshi.com/catalog/g/g107435/) | [`BZT52C3V3` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=BZT52C3V3) | [BZT52C3V3-HF](https://www.mouser.com/ProductDetail/Comchip-Technology/BZT52C3V3-HF?qs=sPbYRqrBIVmXM9SVNdMgcA%3D%3D) | [BZT52C3V3-7-F](https://www.digikey.com/en/products/detail/diodes-incorporated/BZT52C3V3-7-F/717854) |
-| **D6** | サイドビュー緑LED | **[LP812-010(T)（116854）](https://akizukidenshi.com/catalog/g/g116854/)** ← ここだけ | ✗ | ✗ | ✗ |
-| **F1** | PPTC 1A hold 1206 | ✗ | [`1206L110/16WR` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=1206L110) | `1206L110` で検索 | [1206L110/16WR](https://www.digikey.com/en/products/detail/littelfuse-inc/1206L110-16WR/3997167) |
-| **Q1** | MMBT3904 SOT-23 | [20個入 ¥100（105969）](https://akizukidenshi.com/catalog/g/g105969/) | [`MMBT3904` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=MMBT3904) | [onsemi MMBT3904](https://www.mouser.com/ProductDetail/onsemi/MMBT3904?qs=UMEuL5FsraCg3xKjS4uBJQ%3D%3D) | [onsemi MMBT3904](https://www.digikey.com/en/products/detail/onsemi/MMBT3904/458868) |
-| **Q2** | ZXMP6A17E6Q SOT-23-6 | ✗ | [`ZXMP6A17E6QTA` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=ZXMP6A17E6QTA) | [ZXMP6A17E6QTA](https://www.mouser.com/ProductDetail/Diodes-Incorporated/ZXMP6A17E6QTA?qs=JtunSoW0QGE6mLYIV79weA%3D%3D) | [ZXMP6A17E6QTA](https://www.digikey.com/en/products/detail/diodes-incorporated/ZXMP6A17E6QTA/4810942) |
+| **D1, D3** | Schottky 40 V/1 A **SOD-123** | ✗ (see below) | [search `1N5819HW-7-F`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=1N5819HW-7-F) | [1N5819HW-7-F](https://www.mouser.com/ProductDetail/Diodes-Incorporated/1N5819HW-7-F?qs=NQ47qNm99eDyWTEd07miYA%3D%3D) | [1N5819HW-7-F](https://www.digikey.com/product-detail/en/1N5819HW-7-F/1N5819HW-FDICT-ND/815283) |
+| **D2** | SMAJ16A (SMA / 400 W) | ✗ | **[SMAJ16A (Littelfuse)](https://www.marutsu.co.jp/pc/i/2079887/)** | search `SMAJ16A` | [SMAJ16A](https://www.digikey.com/en/products/detail/littelfuse-inc/SMAJ16A/762278) |
+| ~~D4~~ | Zener 3.3 V (**retired in v2**, no need to buy) | △ [UDZV3.6B **3.6 V** (107435)](https://akizukidenshi.com/catalog/g/g107435/) | [search `BZT52C3V3`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=BZT52C3V3) | [BZT52C3V3-HF](https://www.mouser.com/ProductDetail/Comchip-Technology/BZT52C3V3-HF?qs=sPbYRqrBIVmXM9SVNdMgcA%3D%3D) | [BZT52C3V3-7-F](https://www.digikey.com/en/products/detail/diodes-incorporated/BZT52C3V3-7-F/717854) |
+| **D6** | Side-view green LED | **[LP812-010(T) (116854)](https://akizukidenshi.com/catalog/g/g116854/)** ← only here | ✗ | ✗ | ✗ |
+| **F1** | PPTC 1 A hold, 1206 | ✗ | [search `1206L110/16WR`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=1206L110) | search `1206L110` | [1206L110/16WR](https://www.digikey.com/en/products/detail/littelfuse-inc/1206L110-16WR/3997167) |
+| **Q1** | MMBT3904 SOT-23 | [pack of 20, ¥100 (105969)](https://akizukidenshi.com/catalog/g/g105969/) | [search `MMBT3904`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=MMBT3904) | [onsemi MMBT3904](https://www.mouser.com/ProductDetail/onsemi/MMBT3904?qs=UMEuL5FsraCg3xKjS4uBJQ%3D%3D) | [onsemi MMBT3904](https://www.digikey.com/en/products/detail/onsemi/MMBT3904/458868) |
+| **Q2** | ZXMP6A17E6Q SOT-23-6 | ✗ | [search `ZXMP6A17E6QTA`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=ZXMP6A17E6QTA) | [ZXMP6A17E6QTA](https://www.mouser.com/ProductDetail/Diodes-Incorporated/ZXMP6A17E6QTA?qs=JtunSoW0QGE6mLYIV79weA%3D%3D) | [ZXMP6A17E6QTA](https://www.digikey.com/en/products/detail/diodes-incorporated/ZXMP6A17E6QTA/4810942) |
 
-## 4. IC・モジュール（3品目）
+## 4. ICs and modules (3 line items)
 
-| Ref | 部品 | 秋月電子 | **マルツ** | Mouser / DigiKey |
+| Ref | Part | Akizuki Denshi | **Marutsu** | Mouser / DigiKey |
 |---|---|---|---|---|
-| ~~U1~~ | M78AR05-0.5（**v4で廃止**・購入不要） | [¥580（107179）](https://akizukidenshi.com/catalog/g/g107179/) | — | — |
-| **U4** | **AP63205WU-7**（TSOT-26、5V/2A バック） | ✗ | [`AP63205WU-7` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=AP63205WU-7) | [Mouser](https://www.mouser.com/ProductDetail/Diodes-Incorporated/AP63205WU-7?qs=u16ybLDytRZtkj8PzdWCOw%3D%3D) / [DigiKey](https://www.digikey.com/en/products/detail/diodes-incorporated/AP63205WU-7/9858424) |
-| **L1** | 6.8µH 4030 飽和≥1.5A | ✗ | [`ASPI-4030S-6R8M` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=ASPI-4030S-6R8M) | [ASPI-4030S-6R8M-T（Mouser）](https://www.mouser.com/ProductDetail/ABRACON/ASPI-4030S-6R8M-T?qs=BLmuIjeT3qE8jeo8oUT4Iw%3D%3D) |
-| **C14** | 10µF/**50V** 3216(1206) X7R | ✗ | `GRM31CR71H106KA12` で検索 | 同型番で検索（Murata 1206 50V）|
-| **C15** | 22µF/16V 2012(0805) | ✗ | `GRM21BR61C226ME44` で検索 | 同型番で検索 |
-| **C16** | 100nF/50V 2012(0805) | ✗ | `0805 100nF 50V X7R` で検索 | 任意メーカー可 |
-| **U2** | MCP25625T-E/SS（SSOP-28） | **[¥400（112663）](https://akizukidenshi.com/catalog/g/g112663/)** ← 最安 | [`MCP25625` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=MCP25625) | [Mouser](https://www.mouser.com/ProductDetail/Microchip-Technology/MCP25625T-E-SS?qs=YlpJWyuQ3PP8xO0AA8P3ZQ%3D%3D) / [DigiKey](https://www.digikey.com/en/products/detail/microchip-technology/MCP25625T-E-SS/4860100) |
-| **U3** | Raspberry Pi Pico 2 | [Pico 2（129604）](https://akizukidenshi.com/catalog/g/g129604/) / [**Pico 2 H**（ヘッダ実装済、130982）](https://akizukidenshi.com/catalog/g/g130982/) | [`Raspberry Pi Pico 2` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=Raspberry+Pi+Pico+2) | — |
+| ~~U1~~ | M78AR05-0.5 (**retired in v4**, no need to buy) | [¥580 (107179)](https://akizukidenshi.com/catalog/g/g107179/) | — | — |
+| **U4** | **AP63205WU-7** (TSOT-26, 5 V/2 A buck) | ✗ | [search `AP63205WU-7`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=AP63205WU-7) | [Mouser](https://www.mouser.com/ProductDetail/Diodes-Incorporated/AP63205WU-7?qs=u16ybLDytRZtkj8PzdWCOw%3D%3D) / [DigiKey](https://www.digikey.com/en/products/detail/diodes-incorporated/AP63205WU-7/9858424) |
+| **L1** | 6.8 µH 4030, saturation ≥1.5 A | ✗ | [search `ASPI-4030S-6R8M`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=ASPI-4030S-6R8M) | [ASPI-4030S-6R8M-T (Mouser)](https://www.mouser.com/ProductDetail/ABRACON/ASPI-4030S-6R8M-T?qs=BLmuIjeT3qE8jeo8oUT4Iw%3D%3D) |
+| **C14** | 10 µF / **50 V** 3216 (1206) X7R | ✗ | search `GRM31CR71H106KA12` | search the same part number (Murata 1206 50 V) |
+| **C15** | 22 µF / 16 V 2012 (0805) | ✗ | search `GRM21BR61C226ME44` | search the same part number |
+| **C16** | 100 nF / 50 V 2012 (0805) | ✗ | search `0805 100nF 50V X7R` | any manufacturer |
+| **U2** | MCP25625T-E/SS (SSOP-28) | **[¥400 (112663)](https://akizukidenshi.com/catalog/g/g112663/)** ← cheapest | [search `MCP25625`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=MCP25625) | [Mouser](https://www.mouser.com/ProductDetail/Microchip-Technology/MCP25625T-E-SS?qs=YlpJWyuQ3PP8xO0AA8P3ZQ%3D%3D) / [DigiKey](https://www.digikey.com/en/products/detail/microchip-technology/MCP25625T-E-SS/4860100) |
+| **U3** | Raspberry Pi Pico 2 | [Pico 2 (129604)](https://akizukidenshi.com/catalog/g/g129604/) / [**Pico 2 H** (headers fitted, 130982)](https://akizukidenshi.com/catalog/g/g130982/) | [search `Raspberry Pi Pico 2`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=Raspberry+Pi+Pico+2) | — |
 
-**U2 は秋月が ¥400 で最安**（DigiKey は $3.38＝約¥500）。回路図の型番 `MCP25625T-E/SS`
-と完全一致する。
+**U2 is cheapest at Akizuki for ¥400** (DigiKey is $3.38, about ¥500). It matches the schematic's
+part number `MCP25625T-E/SS` exactly.
 
-## 5. コネクタ・その他（4品目）
+## 5. Connectors and others (4 line items)
 
-| Ref | 部品 | 秋月電子 | **マルツ** | Mouser / DigiKey |
+| Ref | Part | Akizuki Denshi | **Marutsu** | Mouser / DigiKey |
 |---|---|---|---|---|
-| **J1** | TE 1-967658-1（MQS 8極 RA） | ✗ | [`1-967658-1` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=1-967658-1) | △ [DigiKey Marketplace](https://www.digikey.be/en/products/detail/te-connectivity-amp-connectors/1-967658-1/10478177) ／ [TE 公式](https://www.te.com/en/product-1-967658-1.html) |
-| **J2** | DM3AT-SF-PEJM5（microSD） | ✗ | **[ヒロセ DM3AT-SF-PEJM5](https://www.marutsu.co.jp/pc/i/2571574/)**（[別ページ](https://www.marutsu.co.jp/pc/i/238416/)） | [Mouser](https://www.mouser.com/ProductDetail/Hirose-Connector/DM3AT-SF-PEJM5?qs=LZSZKJVF+2WTDKp+R7IYAQ%3D%3D) / [DigiKey](https://www.digikey.com/en/products/detail/hirose-electric-co-ltd/DM3AT-SF-PEJM5/2533565) |
-| **J3** | GT-502MGG-N（GPS） | **[¥3,180（117980）](https://akizukidenshi.com/catalog/g/g117980/)** | [`GT-502MGG-N` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=GT-502MGG-N) | [DigiKey](https://www.digikey.jp/ja/products/detail/yic/GT-502MGG-N/16499054) |
-| **Y1** | 16MHz HC-49/S（THT） | [クリスタル 16MHz（108671）](https://akizukidenshi.com/catalog/g/g108671/) | [`16MHz HC-49` で検索](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=16MHz+HC-49) | — |
+| **J1** | TE 1-967658-1 (MQS 8 way RA) | ✗ | [search `1-967658-1`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=1-967658-1) | △ [DigiKey Marketplace](https://www.digikey.be/en/products/detail/te-connectivity-amp-connectors/1-967658-1/10478177) or [TE direct](https://www.te.com/en/product-1-967658-1.html) |
+| **J2** | DM3AT-SF-PEJM5 (microSD) | ✗ | **[Hirose DM3AT-SF-PEJM5](https://www.marutsu.co.jp/pc/i/2571574/)** ([another page](https://www.marutsu.co.jp/pc/i/238416/)) | [Mouser](https://www.mouser.com/ProductDetail/Hirose-Connector/DM3AT-SF-PEJM5?qs=LZSZKJVF+2WTDKp+R7IYAQ%3D%3D) / [DigiKey](https://www.digikey.com/en/products/detail/hirose-electric-co-ltd/DM3AT-SF-PEJM5/2533565) |
+| **J3** | GT-502MGG-N (GPS) | **[¥3,180 (117980)](https://akizukidenshi.com/catalog/g/g117980/)** | [search `GT-502MGG-N`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=GT-502MGG-N) | [DigiKey](https://www.digikey.jp/ja/products/detail/yic/GT-502MGG-N/16499054) |
+| **Y1** | 16 MHz HC-49/S (THT) | [crystal 16 MHz (108671)](https://akizukidenshi.com/catalog/g/g108671/) | [search `16MHz HC-49`](https://www.marutsu.co.jp/GoodsListNavi.jsp?q=16MHz+HC-49) | — |
 
-**J1（MQS コネクタ）が一番入手しにくい。** DigiKey では Marketplace（第三者出品）扱いで、
-在庫・納期が通常在庫品と異なる。マルツ・RS コンポーネンツでも型番検索する価値がある。
-**発注前に必ず在庫を確認すること。**
+**J1 (the MQS connector) is the hardest part to obtain.** On DigiKey it is handled through the
+Marketplace (a third-party seller), so stock and lead time differ from normal stock items. It is
+worth searching the part number at Marutsu and RS Components too.
+**Always confirm stock before ordering.**
 
-## 6. BOM に無いが必要なもの
+## 6. Needed but not in the BOM
 
-**Pico をソケット実装する設計**なので、基板側にメスのピンソケットが要る。
+**The design socket-mounts the Pico**, so the board needs female pin sockets.
 
-| 必要なもの | 数量 | 秋月電子 |
+| What is needed | Quantity | Akizuki Denshi |
 |---|---|---|
-| 1×20 メスピンソケット（2.54mm） | 2本 | [分割ロングピンソケット 1×42（105779）](https://akizukidenshi.com/catalog/g/g105779/) を切って使う |
-| Pico 側のオスピンヘッダ | 2本 | [Pico 2 H（130982）](https://akizukidenshi.com/catalog/g/g130982/) なら実装済みなので不要 |
+| 1×20 female pin socket (2.54 mm) | 2 | Cut down a [breakable long pin socket, 1×42 (105779)](https://akizukidenshi.com/catalog/g/g105779/) |
+| Male pin headers for the Pico | 2 | Not needed with [Pico 2 H (130982)](https://akizukidenshi.com/catalog/g/g130982/), which has them fitted |
 
 ---
 
-## 買ってはいけないもの
+## What not to buy
 
-### D1/D3 に SS14
+### SS14 for D1/D3
 
-秋月にも [SS14（113240）](https://akizukidenshi.com/catalog/g/g113240/) があるが、
-これは **SMA（DO-214AC）**で、基板のランドは **SOD-123**。物理的に載らない。
-**1N5819HW-7-F**（Diodes Inc、40V/1A、SOD-123）を買うこと。
+Akizuki does have [SS14 (113240)](https://akizukidenshi.com/catalog/g/g113240/), but that is
+**SMA (DO-214AC)** while the board land is **SOD-123**. It physically will not fit.
+Buy **1N5819HW-7-F** (Diodes Inc, 40 V/1 A, SOD-123).
 
-### C2-C5/C10/C12 に「F特性」の 0.1µF
+### "F characteristic" 0.1 µF for C2-C5/C10/C12
 
-上記のとおり Y5V 相当。**X7R か X8L** を選ぶこと。
+As above, that is equivalent to Y5V. Choose **X7R or X8L**.
 
-### F1 に 6V / 8V 品
+### 6 V or 8 V parts for F1
 
-`1206L110` 系には 6V（1206L110SLYR）と 8V（1206L110THYR）もある。
-12V 車載では使えない。**1206L110/16WR** を指定すること。
-秋月の PICOSMDC110S-2 も 6V。
+The `1206L110` family also comes in 6 V (1206L110SLYR) and 8 V (1206L110THYR). Those cannot be used
+in a 12 V vehicle. Specify **1206L110/16WR**. Akizuki's PICOSMDC110S-2 is 6 V as well.
 
 ---
 
-## 補足
+## Notes
 
-### F1 の耐圧 16V は許容済み
+### The 16 V rating of F1 is accepted
 
-1206 で 1.1A hold の PPTC は **16V が上限**。しかも F1 は **D2（TVS）より前段**
-（J1.8 → F1 → D1 → D2）にあり、車両側サージをクランプされずに直接受ける唯一の部品。
-24V/30V 品は 1812 などサイズアップが必要で基板変更を伴うため、
-**ユーザー判断で 16V のまま進める**（2026-07-31）。
+For a 1206 PPTC with 1.1 A hold, **16 V is the ceiling**. On top of that, F1 is **upstream of D2
+(the TVS)** (J1.8 → F1 → D1 → D2), making it the only part that takes vehicle-side surges without
+them being clamped. A 24 V/30 V part would need a larger size such as 1812 and therefore a board
+change, so **by the user's decision it stays at 16 V** (2026-07-31).
 
-### ~~D4 を秋月で買う場合は 3.6V になる~~（v2 で D4 廃止）
+### ~~Buying D4 from Akizuki means 3.6 V~~ (D4 retired in v2)
 
-v2 で IG 電圧センシングごと削除したため D4 は不要になった。
-以下は v1 の記録: 秋月の SOD-123 ツェナーは 3.6V と 5.1V で 3.3V が無く、
-ADC 絶対最大定格（VDD+0.3 = 3.6V）に対し余裕ゼロの代用だった。
+IG voltage sensing was removed entirely in v2, so D4 is no longer needed.
+The following is kept as a v1 record: Akizuki's SOD-123 zeners come in 3.6 V and 5.1 V with no
+3.3 V, which left zero margin against the ADC absolute maximum rating (VDD+0.3 = 3.6 V).
 
-### Y1 の負荷容量
+### Y1's load capacitance
 
-C7/C8 が 22pF なので、**負荷容量 CL = 16〜20pF** の水晶を選ぶこと。
-秋月の 108671 は CL=20pF で適合する。CL=12pF や 32pF の品を買わないこと。
+C7/C8 are 22 pF, so choose a crystal with **a load capacitance CL of 16–20 pF**. Akizuki's 108671
+is CL=20 pF and fits. Do not buy CL=12 pF or 32 pF parts.
 
-### 手はんだの難所
+### The hard parts to hand solder
 
-| 部品 | 難度 |
+| Part | Difficulty |
 |---|---|
-| **U2 MCP25625（SSOP-28、0.65mmピッチ）** | 最難関。フラックスと引きはんだ推奨 |
-| **J2 microSD コネクタ** | 端子が細かく、シェル脚は熱容量が大きい |
-| **D6 サイドビューLED** | 基板端（y=61）に置くため位置決めがシビア |
-| **J3 GPS パッド** | 5パッドに先バラ線を直付け |
-| U3 のソケット | 40穴。数が多いだけで v2 では難所ではない |
+| **U2 MCP25625 (SSOP-28, 0.65 mm pitch)** | The hardest. Flux and drag soldering recommended |
+| **J2 microSD connector** | Fine terminals, and the shell legs have a large thermal mass |
+| **D6 side-view LED** | Positioning is critical because it sits on the board edge (y=61) |
+| **J3 GPS pads** | Bare wires soldered directly to 5 pads |
+| U3's socket | 40 holes. Just a lot of them; not difficult as of v2 |
 
-**v2 で GND パッドは全数サーマル接続に変更した**（スポーク 0.4mm / ギャップ 0.3mm）。
-v1 のベタ直結（GND ピンだけ異様に熱を食う）は解消済み。通常のこて先温度で作業できる。
+**All GND pads were changed to thermal relief in v2** (spoke 0.4 mm / gap 0.3 mm). The direct pour
+connection of v1 (where the GND pins alone sank an absurd amount of heat) is resolved. A normal iron
+tip temperature works.
 
 ---
 
-*2026-07-31 時点。価格・在庫は変動するため発注時に各ページで確認すること。*
+*As of 2026-07-31. Prices and stock change, so confirm on each page when ordering.*

@@ -1,214 +1,250 @@
-﻿# MotoRecoPico 部品表・ネットリスト
+﻿# MotoRecoPico bill of materials and netlist
 
-[hardware-design.md](hardware-design.md) の設計を、リファレンス記号と定数まで落としたもの。
-回路図はこの内容をそのまま描画する。
+The design in [hardware-design.md](hardware-design.md), taken down to reference designators and
+component values. The schematic is a drawing of exactly this content.
 
-**小型化のため大幅に簡素化した版。部品 58点 → 38点（v2 で 35点）。リファレンス記号は振り直した。**
+**This is the heavily simplified version made for a smaller board. 58 parts → 38 parts (35 in v2).
+The reference designators were renumbered.**
 
-v4.2（2026-08-23、v4.1 実基板の手はんだ経験を受けた改訂）:
-- **Pico を裏面へ**（面を反転。穴位置・GPIO 割当・ファームウェアは不変。§4.11）
-- **Q2 を U4 と同じ手はんだ用ランド**（パッド 2.0×0.65mm）に変更し、90° 立てて配置
-- **L1 のパッドを外側へ 1mm 延長**した自作ランドにし、90° 回転して U4 の SW パッドから離す
-- 部品・定数は完全不変
+v5 (2026-10-16, **the JLCPCB-assembled version**. Generated with `MRP_ASSY=jlc`; coexists with the
+hand-soldered v4.2):
+- **All SMD parts collected on the F side**, for single-sided Economic SMT assembly (chips moved to
+  0402; see §4.12)
+- **The Pico became an SMD part soldered directly by its castellations** (back side, socket
+  retired — all 40 through-holes gone)
+- **Q2 → SI2309** (−60 V/±20 V, SOT-23; the ZXMP6A17E6Q is not in LCSC stock)
+- **Y1 → 3225 SMD (X322516MLB4SI, a JLC Basic part)**, load capacitors down to 12 pF
+- **GPS (J3) removed from the board** (the module's 5 wires go straight to the Pico; GP0/GP1/GP6
+  become spares)
+- The only hand work is the Pico's direct soldering, D6 and J1
 
-v4.1（2026-08-14）:
-- **Pico を面はそのまま 180° 回転**（USB ポートが microSD 側 y=61 端を向く。§4.10）
-- **GPIO を回転後の位置で再割当**（SD=SPI0 GP2〜5、CAN=SPI1 GP10〜13、GPS=UART0 GP0/1。
-  **ファームウェアのピン定義変更が必要**。IG_SENSE は GP28 のまま）
-- 穴位置は 1 つも変わらない（2×20 グリッドは 180° 回転対称。部品構成も完全不変）
+v4.2 (2026-08-23, a revision driven by the hand-soldering experience with a physical v4.1 board):
+- **The Pico moved to the back side** (flipped. Hole positions, GPIO assignment and firmware are
+  unchanged; see §4.11)
+- **Q2 moved to the same hand-soldering land as U4** (2.0×0.65 mm pads) and stood on end at 90°
+- **L1's pads were extended 1 mm outwards** on a custom land, rotated 90° to get away from U4's SW
+  pad
+- Parts and values completely unchanged
 
-v4（2026-08-14）:
-- **5V 電源を M78AR05（SIP、10.2mm高）→ AP63205WU-7（TSOT-26 同期整流バック＋L/C 4点、最背3mm）に**（§4.9）
-- **J1 を表面実装に反転**（車両カプラが Pico 側から刺さる。穴パターンは鏡像化）
-- **GPS シルクの T/R を修正**（v1 で逆だった。パッド3=R、パッド4=T）
-- 副次効果: 最低入力 3.8V となり**クランキング時リセットの残課題が解消**
+v4.1 (2026-08-14):
+- **The Pico was rotated 180° on the same side** (the USB port now faces the microSD end, y=61;
+  see §4.10)
+- **GPIO was reassigned by post-rotation position** (SD=SPI0 GP2–5, CAN=SPI1 GP10–13,
+  GPS=UART0 GP0/1. **The firmware pin definitions had to change.** IG_SENSE stays on GP28)
+- Not a single hole position changed (the 2×20 grid is 180°-rotationally symmetric; the component
+  selection is also completely unchanged)
 
-v3.1（2026-08-13、**重要な不具合修正**）:
-- **Q2 のパッド対応が実部品と鏡像だった問題を修正**（v1〜v3 全てに影響。§4.8）
+v4 (2026-08-14):
+- **The 5V supply went from the M78AR05 (SIP, 10.2 mm tall) to the AP63205WU-7** (TSOT-26
+  synchronous buck plus 4 L/C parts, tallest 3 mm; see §4.9)
+- **J1 flipped to the front side** (the vehicle connector now plugs in from the Pico side; the hole
+  pattern is mirrored)
+- **The GPS silkscreen T/R was corrected** (it was reversed in v1; pad 3 = R, pad 4 = T)
+- Side effect: the minimum input became 3.8 V, which **resolved the outstanding cranking-reset
+  issue**
 
-v3（2026-08-09、ソフト電源OFF ほか）:
-- **IGN OFF 遅延を追加**（C13: Q2 ゲート遅延 約0.4〜0.5s、R15: GP28 への IG 検知。§4.7）
-- **C7/C8 を Y1 の直近に移設**（2.2/2.8mm。XTAL の内層通過を解消）
-- **C6・C11 を表面へ移動し、1608 チップ23点を全数表面に集約**
+v3.1 (2026-08-13, **an important bug fix**):
+- **Fixed Q2's pad mapping, which was mirrored relative to the real part** (affects v1 through v3;
+  see §4.8)
 
-v2（2026-08-08、v1 実基板の実装経験を受けた改訂）:
-- **IG 電圧センシングを廃止**（R5・D4・C12 と GP28 接続を削除。IG 検出スイッチは存続）
-- **GND パッドをベタ直結 → サーマル接続に**（手はんだ性。スポーク 0.4mm / ギャップ 0.3mm）
-- 2層化を試行したが不成立（下記 §4.6）。**4層を継続**
+v3 (2026-08-09, soft power-off and more):
+- **Added an IGN OFF delay** (C13: about 0.4–0.5 s of Q2 gate delay; R15: IG sensing into GP28;
+  see §4.7)
+- **Moved C7/C8 right next to Y1** (2.2/2.8 mm, eliminating XTAL's passage through an inner layer)
+- **Moved C6 and C11 to the front side, collecting all 23 of the 1608 chips on the front**
 
-v1 の主な変更:
-- 降圧を LM2596 + 外付け4点 → **M78AR05-0.5**（インダクタ・コンデンサ内蔵）1点に
-- GPS 用 LDO を廃止し **Pico の 3V3(OUT) から供給**
-- ラッチング電源を廃止し **IG 信号(J1.3)で駆動する高側スイッチ**に
-- 12V センスを1系統に統合、ラジアル部品を全廃
-- U1 の入力コンデンサ C1 を削除（入力上限 32V→28V、D2 を SMAJ16A に）
-- CAN 終端をスプリット（R8+R9+C9+JP1）から **120Ω 1本**に。**D5 (PESD1CAN) も廃止**
-- Pico の GPIO 割当を基板配置に合わせて再割当（CAN=SPI0、SD=SPI1、GPS=UART0）
+v2 (2026-08-08, a revision driven by the assembly experience with a physical v1 board):
+- **Retired IG voltage sensing** (removed R5, D4, C12 and the GP28 connection. The IG detection
+  switch remains)
+- **GND pads went from a direct pour connection to thermal relief** (for hand soldering;
+  spoke 0.4 mm / gap 0.3 mm)
+- Two layers were attempted and did not work out (see §4.6 below). **Four layers continues**
 
-> **この文書が正典。** KiCad の回路図と基板はこの内容から生成している。
-> 生成物と食い違いを見つけた場合は、この文書の側を実データと突き合わせて直すこと。
+The main changes in v1:
+- The step-down went from an LM2596 plus 4 external parts to a single **M78AR05-0.5** (inductor and
+  capacitors built in)
+- The GPS LDO was retired and **GPS is supplied from the Pico's 3V3(OUT)**
+- The latching supply was retired in favour of **a high-side switch driven by the IG signal (J1.3)**
+- 12V sensing was consolidated into one path and all radial components were eliminated
+- U1's input capacitor C1 was removed (input ceiling 32 V → 28 V, so D2 became an SMAJ16A)
+- CAN termination went from split (R8+R9+C9+JP1) to **a single 120 Ω**. **D5 (PESD1CAN) was also
+  retired**
+- The Pico's GPIO assignment was redone to match the board layout (CAN=SPI0, SD=SPI1, GPS=UART0)
+
+> **This document is canonical.** The KiCad schematic and board are generated from this content.
+> If you find a discrepancy with the generated files, fix this document after checking it against
+> the real data.
 
 ---
 
-## 1. 部品表（BOM）
+## 1. Bill of materials (BOM)
 
-### 1.1 コネクタ・モジュール
+### 1.1 Connectors and modules
 
-| 記号 | 部品 | 型番 | パッケージ | 備考 |
+| Ref | Part | Type number | Package | Notes |
 |---|---|---|---|---|
-| J1 | 車両I/Fコネクタ | TE 1-967658-1 | MQS .63 8極 RA THT | Mouser。**表面実装（v4）** |
-| J2 | MicroSDソケット | Hirose DM3AT-SF-PEJM5 | SMD RA | 秋月 102395 |
-| J3 | GPS配線パッド | GT-502MGG-N 用 | **SMD パッド × 5（片面）** | スルーホール無し |
-| U4 | 降圧DCDC | **Diodes AP63205WU-7** | TSOT-26 | 3.8〜32V入力 / 5V固定 2A 同期整流。裏面実装（v4）|
-| U2 | CANコントローラ | Microchip MCP25625T-E/SS | SSOP-28 | 秋月 112663 |
-| U3 | MCU モジュール | Raspberry Pi Pico 2 | 2×20 ソケット | 表面実装 |
+| J1 | Vehicle I/F connector | TE 1-967658-1 | MQS .63, 8 way, RA, THT | Mouser. **Front-side mount (v4)** |
+| J2 | MicroSD socket | Hirose DM3AT-SF-PEJM5 | SMD RA | Akizuki 102395 |
+| J3 | GPS wiring pads | for the GT-502MGG-N | **5 SMD pads (one side)** | No through-holes |
+| U4 | Step-down DC-DC | **Diodes AP63205WU-7** | TSOT-26 | 3.8–32 V in / 5 V fixed, 2 A, synchronous. Back-side mount (v4) |
+| U2 | CAN controller | Microchip MCP25625T-E/SS | SSOP-28 | Akizuki 112663 |
+| U3 | MCU module | Raspberry Pi Pico 2 | 2×20 socket | Front-side mount |
 
-### 1.2 半導体
+### 1.2 Semiconductors
 
-| 記号 | 部品 | 型番 | パッケージ | 目的 |
+| Ref | Part | Type number | Package | Purpose |
 |---|---|---|---|---|
-| Q1 | NPN | MMBT3904 | SOT-23 | IG検出でQ2ゲートを引き下げ |
-| Q2 | Pch MOSFET | **Diodes ZXMP6A17E6Q** | SOT-26（**v4.2: U4 と同じ手はんだ用ランド**）| 高側スイッチ。−60V / −3A / AEC-Q101 |
-| D1 | ショットキー | **B5819W（1A/40V）** LCSC C8598 | **SOD-123** | 逆接保護（直列）。JLC Basic |
-| D2 | TVS | **SMAJ16A（400W）** | **SMA** | 入力サージのクランプ。**クランプ26.0V < U1の28V上限** |
-| D3 | ショットキー | **B5819W（1A/40V）** LCSC C8598 | **SOD-123** | VSYS給電。USBとのダイオードOR。JLC Basic |
-| D6 | LED 緑（側面発光）| KODENSHI LP812-010(T) | サイドビュー 2812 | 秋月 116854。基板端。**唯一の表示** |
+| Q1 | NPN | MMBT3904 | SOT-23 | Pulls Q2's gate down when IG is detected |
+| Q2 | P-ch MOSFET | **Diodes ZXMP6A17E6Q** | SOT-26 (**v4.2: the same hand-soldering land as U4**) | High-side switch. −60 V / −3 A / AEC-Q101 |
+| D1 | Schottky | **B5819W (1 A/40 V)** LCSC C8598 | **SOD-123** | Reverse-polarity protection (in series). A JLC Basic part |
+| D2 | TVS | **SMAJ16A (400 W)** | **SMA** | Clamps input surges. **Clamp 26.0 V < U1's 28 V ceiling** |
+| D3 | Schottky | **B5819W (1 A/40 V)** LCSC C8598 | **SOD-123** | Supplies VSYS. Diode-ORed with USB. A JLC Basic part |
+| D6 | Green LED (side emitting) | KODENSHI LP812-010(T) | Side-view 2812 | Akizuki 116854. On the board edge. **The only indicator** |
 
-**CAN バスの ESD 保護素子は無い。** MCP25625 自身のバス耐圧（±14V）と ESD 耐性に依存する。
-車両ハーネス直結でサージが入る経路であることは意識しておくこと。
+**There is no ESD protection device on the CAN bus.** It relies on the MCP25625's own bus voltage
+rating (±14 V) and ESD tolerance. Be aware that this is a path for surges, wired directly to the
+vehicle harness.
 
-### 1.3 抵抗（全て **1608** = 1.6×0.8mm / 0603）
+### 1.3 Resistors (all **1608** = 1.6×0.8 mm / 0603)
 
-| 記号 | 値 | 目的 |
+| Ref | Value | Purpose |
 |---|---|---|
-| R1 | 100k | Q2 ゲート → ソース プルアップ（既定OFF） |
-| R2 | 100k | Q2 ゲート → Q1 コレクタ（**Vgs = 電源の1/2 に制限**） |
-| R3 | 100k | IG → Q1 ベース。ベース電流制限（サージ時も 1mA 未満）|
-| R4 | 22k | Q1 ベース → GND。IG 浮遊時にベースを確実に落とす |
-| R6 | 10k | MCP25625 RESET プルアップ |
-| R7 | 10k | MCP25625 **TxnRTS 3本の共通**プルアップ |
-| R8 | **120Ω** | CAN 終端。CANH–CANL 間に1本 |
-| R10 | 10k | SD CD_DAT3(CS) プルアップ |
-| R11 | 10k | SD DAT0(MISO) プルアップ |
-| R12 | 10k | SD **DAT1/DAT2 共通**プルアップ |
-| R13 | 10k | SD カード検出 プルアップ |
-| R14 | 1k | LED 電流制限（5Vから約2.0mA）|
-| R15 | 10k | **v3** IG検知。Q1 ベースノード → GP28 (ADC2) の直列保護 |
+| R1 | 100k | Q2 gate → source pull-up (off by default) |
+| R2 | 100k | Q2 gate → Q1 collector (**limits Vgs to half the supply**) |
+| R3 | 100k | IG → Q1 base. Base current limit (under 1 mA even during a surge) |
+| R4 | 22k | Q1 base → GND. Pulls the base down reliably when IG floats |
+| R6 | 10k | MCP25625 RESET pull-up |
+| R7 | 10k | MCP25625 **common pull-up for the three TxnRTS pins** |
+| R8 | **120 Ω** | CAN termination. A single resistor between CANH and CANL |
+| R10 | 10k | SD CD_DAT3 (CS) pull-up |
+| R11 | 10k | SD DAT0 (MISO) pull-up |
+| R12 | 10k | SD **common pull-up for DAT1/DAT2** |
+| R13 | 10k | SD card detect pull-up |
+| R14 | 1k | LED current limit (about 2.0 mA from 5 V) |
+| R15 | 10k | **v3** IG sensing. Series protection from Q1's base node to GP28 (ADC2) |
 
-### 1.4 コンデンサ（全て **1608** = 1.6×0.8mm / 0603）
+### 1.4 Capacitors (all **1608** = 1.6×0.8 mm / 0603)
 
-100nF は全数 **50V** 品。1608 なら 50V が JLCPCB の Basic 部品にあるため
-（1005 だと 16V しか無く、C2 だけ別扱いにする必要があった）。
+Every 100 nF part is rated **50 V**, because at 1608 a 50 V part exists among JLCPCB's Basic parts
+(at 1005 only 16 V was available, which meant treating C2 as a special case).
 
-| 記号 | 値 | 目的 |
+| Ref | Value | Purpose |
 |---|---|---|
-| C2 | 100nF / 50V | **V12P（常時12V）のバイパス。D2 のサージ電流ループをローカルに閉じる** |
-| C3 | 100nF | MCP25625 VIO |
-| C4 | 100nF | MCP25625 VDD |
-| C5 | 100nF | MCP25625 VDDA |
-| C6 | 10µF | MCP25625 VDDA バルク |
-| C7 | 22pF | 水晶 負荷容量 |
-| C8 | 22pF | 水晶 負荷容量 |
-| C10 | 100nF | SD VDD |
-| C11 | 10µF | SD バルク（書き込みピーク）|
-| C13 | 10µF / **25V** | **v3** Q2 ゲート–ソース間（R1 と並列）。IGN OFF 遅延 約0.4〜0.5s |
-| C14 | 10µF / **50V**（**3216**）| **v4** バック入力。クランプ26Vを直接見るため50V必須 |
-| C15 | 22µF / 16V（**2012**）| **v4** バック出力（V5 バルク）|
-| C16 | 100nF / 50V（**2012**）| **v4** ブートストラップ（BST–SW間）。1608片面規則を守るため2012 |
+| C2 | 100 nF / 50 V | **Bypass for V12P (permanent 12V). Closes D2's surge current loop locally** |
+| C3 | 100 nF | MCP25625 VIO |
+| C4 | 100 nF | MCP25625 VDD |
+| C5 | 100 nF | MCP25625 VDDA |
+| C6 | 10 µF | MCP25625 VDDA bulk |
+| C7 | 22 pF | Crystal load capacitance |
+| C8 | 22 pF | Crystal load capacitance |
+| C10 | 100 nF | SD VDD |
+| C11 | 10 µF | SD bulk (write peaks) |
+| C13 | 10 µF / **25 V** | **v3** Across Q2's gate and source (in parallel with R1). About 0.4–0.5 s of IGN OFF delay |
+| C14 | 10 µF / **50 V** (**3216**) | **v4** Buck input. 50 V is mandatory because it sees the 26 V clamp directly |
+| C15 | 22 µF / 16 V (**2012**) | **v4** Buck output (V5 bulk) |
+| C16 | 100 nF / 50 V (**2012**) | **v4** Bootstrap (BST–SW). 2012 to keep the single-sided 1608 rule |
 
-### 1.5 その他
+### 1.5 Others
 
-| 記号 | 部品 | パッケージ | 備考 |
+| Ref | Part | Package | Notes |
 |---|---|---|---|
-| F1 | PTC ヒューズ 1A hold | 1206 | U1 データシートの推奨（5V品は1Aスローブロー）|
-| Y1 | 水晶 16MHz | HC-49S | **裏面実装** |
-| L1 | インダクタ 6.8µH | 4030（4×4×3mm）| **v4** バック用。ASPI-4030S-6R8M 等、飽和 ≥1.5A。**v4.2: パッドを外側に 1mm 延長した自作ランド** |
+| F1 | PTC fuse, 1 A hold | 1206 | Recommended by U1's datasheet (the 5 V part is a 1 A slow-blow) |
+| Y1 | 16 MHz crystal | HC-49S | **Back-side mount** |
+| L1 | 6.8 µH inductor | 4030 (4×4×3 mm) | **v4** For the buck. ASPI-4030S-6R8M or similar, saturation ≥1.5 A. **v4.2: a custom land with pads extended 1 mm outwards** |
 
-**合計 41点。リード部品は J1・Y1・Pico ヘッダのみ。** 表面の背高部品は J1（18.1mm、v4 で表面へ）のみ。裏面は v4.2 で Pico（ソケット 8.5mm ＋ 本体）が乗り、その下の部品の最背は L1 の 3mm。
-（v2 で R5・D4・C12 削除、v3 で C13・R15 追加、v4 で U1 → U4/L1/C14/C15/C16。§4.6〜§4.9 参照）
+**41 parts in total. The only leaded parts are J1, Y1 and the Pico header.** The only tall part on
+the front is J1 (18.1 mm, moved to the front in v4). As of v4.2 the back carries the Pico (8.5 mm
+socket plus the module), and the tallest part underneath it is L1 at 3 mm.
+(R5, D4 and C12 were removed in v2; C13 and R15 added in v3; U1 → U4/L1/C14/C15/C16 in v4.
+See §4.6 through §4.9.)
 
-### CAN 終端は常時有効
+### CAN termination is always on
 
-R8 の 120Ω が CANH–CANL 間に固定で入る。切り離す手段は無い。
+R8's 120 Ω is permanently fitted between CANH and CANL. There is no way to disconnect it.
 
-**二輪車の CAN バスは通常すでに両端が終端されている。** そこへ本機を割り込ませると
-バス全体が 120Ω ∥ 120Ω = 60Ω（既存2本と合わせて 40Ω）になり、通信が成立しない可能性がある。
-バス端に単独で接続する場合や、ベンチ試験でのみ妥当な構成。
-実車で通信できない場合は、まず R8 を外して確認すること。
+**A motorcycle's CAN bus is normally already terminated at both ends.** Inserting this unit into it
+makes the whole bus 120 Ω ∥ 120 Ω = 60 Ω (40 Ω together with the two existing terminations), which
+may stop communication from working at all. This configuration is only reasonable when connecting
+alone at the end of a bus, or on a bench. If communication does not work on the bike, remove R8
+first and check again.
 
-### ~~U1 入力コンデンサを削除したことによる定格変更~~（v4 で U1 廃止・記録として残す）
+### ~~Rating change caused by removing U1's input capacitor~~ (U1 retired in v4; kept as a record)
 
-M78AR05 の入力上限は **32V → 28V** になる（データシート Note 7 の
-「入力に 22µF/50V があれば 32V まで許容」という条件が外れるため）。
-モジュールは内部にフィルタコンデンサを持つので、動作そのものには外付けは不要。
+The M78AR05's input ceiling goes from **32 V to 28 V** (the datasheet's Note 7 condition — "32 V is
+permitted with 22 µF/50 V at the input" — no longer applies). The module has filter capacitors
+internally, so operation itself does not need an external one.
 
-これに合わせて **D2 を SMAJ18A から SMAJ16A に変更**した。
+To match that, **D2 was changed from an SMAJ18A to an SMAJ16A**.
 
 | | SMAJ18A | SMAJ16A |
 |---|---|---|
-| スタンドオフ | 18V | 16V（充電電圧14.4Vより上）|
-| **クランプ電圧** | 29.2V（**28V超過**）| **26.0V** ✓ |
+| Standoff | 18 V | 16 V (above the 14.4 V charging voltage) |
+| **Clamping voltage** | 29.2 V (**exceeds 28 V**) | **26.0 V** ✓ |
 
-**SMAJ18A に戻してはいけない。** クランプ 29.2V が U1 の入力上限 28V を超える。
+**Do not go back to the SMAJ18A.** Its 29.2 V clamp exceeds U1's 28 V input ceiling.
+**(No longer applicable from v4 onwards.)** With U1 retired, the ceiling became the AP63205's 32 V,
+so an SMAJ18A is acceptable too. D2 in v5 is "an SMAJ16A from any manufacturer (first choice
+Littelfuse C74561), or an SMAJ18A / SMAJ16CA if unavailable".
 
 ---
 
-## 2. 電源アーキテクチャ
+## 2. Power architecture
 
 ```
-J1.8 (常時12V) ─ F1(1A PTC) ─ D1(SOD-123) ─┬─ D2(SMAJ16A TVS)
-                                            ├─ C2(100nF)
-                                            ├─ R1(100k) ─┐
-                                            │            │
-                                            └─ Q2.S      │
-                                                 Q2.G ───┤
-                                                 Q2.D    │
-                                                  │   R2(100k)
-                                                  │      │
-                                                  │   Q1.C
-J1.3 (IG信号) ─ R3(100k) ─┬─ Q1.B                       Q1.E ─ GND
-                          ├─ R4(22k) ─ GND
-                          └─ R15(10k) ─ U3.GP28 (ADC2。IG検知、v3)
+J1.8 (perm. 12V) - F1(1A PTC) - D1(SOD-123) -+- D2(SMAJ16A TVS)
+                                             +- C2(100nF)
+                                             +- R1(100k) ---+
+                                             |              |
+                                             +- Q2.S        |
+                                                  Q2.G -----+
+                                                  Q2.D      |
+                                                   |     R2(100k)
+                                                   |        |
+                                                   |     Q1.C
+J1.3 (IG signal) - R3(100k) -+- Q1.B                Q1.E - GND
+                             +- R4(22k) - GND
+                             +- R15(10k) - U3.GP28 (ADC2; IG sensing, v3)
 
-（v3）C13(10µF) が Q2 の G–S 間に入り、IGN OFF 後も Q2 が約0.4〜0.5s 導通を保つ
+(v3) C13(10uF) sits across Q2's G-S, keeping Q2 conducting for about 0.4-0.5 s after IGN OFF
 
-Q2.D ─┬─ C14(10µF/50V) ─ GND
-       ├─ U4.EN
-       └─ U4.VIN ⇒ U4.SW ─ L1(6.8µH) ─┬─ V5 ─┬─ U2.VDDA (MCP25625)
-（AP63205: BST–SW間に C16、V5 に C15/22µF と U4.FB）│
-                                                  ├─ D3 ─ U3.VSYS (Picoへ。USBとOR)
-                                                  └─ R14 ─ D6 LED緑
+Q2.D -+- C14(10uF/50V) - GND
+      +- U4.EN
+      +- U4.VIN => U4.SW - L1(6.8uH) -+- V5 -+- U2.VDDA (MCP25625)
+(AP63205: C16 across BST-SW, C15/22uF     |
+ and U4.FB on V5)                         +- D3 - U3.VSYS (to the Pico; ORed with USB)
+                                          +- R14 - D6 green LED
 
-U3.3V3OUT ─ V3V3 ─┬─ U2.VIO / U2.VDD
-                   ├─ J2 (MicroSD)
-                   ├─ J3.VCC (GPS 50mA)
-                   └─ 各プルアップ
+U3.3V3OUT - V3V3 -+- U2.VIO / U2.VDD
+                  +- J2 (MicroSD)
+                  +- J3.VCC (GPS, 50mA)
+                  +- all the pull-ups
 ```
 
-**IGN OFF 後、電源は約0.4〜0.5秒だけ保持される（v3）。** C13 が Q2 のゲート放電を
-R1 経由に限定するため。ファームウェアは GP28 で IG 消失を検知し、この時間内に
-フラッシュ → Close → リネームを完了させる（契約の詳細は §4.7）。
-ハードウェアのラッチは無く、ファームウェアが暴走しても電源は物理的に落ちる。
+**After IGN OFF, power is held for about 0.4–0.5 seconds (v3)** because C13 restricts the gate
+discharge of Q2 to the path through R1. The firmware detects the loss of IG on GP28 and must
+complete flush → close → rename within that window (the contract is detailed in §4.7). There is no
+hardware latch, so power physically drops even if the firmware hangs.
 
-**3番ピンの負荷は 98µA のみ**（100k+22k）。信号線から電流は取らない。
+**The load on pin 3 is only 98 µA** (100k+22k). No current is drawn from the signal line.
 
-### 電流見積り
+### Current estimate
 
-| 負荷 | 電流 | 5V換算 |
+| Load | Current | As 5 V |
 |---|---|---|
-| MCP25625 VDDA（送信時最大）| 70mA @5V | 70mA |
-| Pico 本体 20mA / GPS 50mA / MCP25625 VDD・VIO 10mA / SD書込ピーク100mA | 180mA @3.3V | 132mA |
-| **合計** | | **約202mA** |
+| MCP25625 VDDA (maximum, transmitting) | 70 mA @5V | 70 mA |
+| Pico itself 20 mA / GPS 50 mA / MCP25625 VDD and VIO 10 mA / SD write peak 100 mA | 180 mA @3.3V | 132 mA |
+| **Total** | | **about 202 mA** |
 
-U1 は 500mA 定格なので 2.5倍の余裕。3V3(OUT) の外部負荷は 160mA で推奨上限 300mA 内。
+U1 is rated 500 mA, 2.5× the margin. The external load on 3V3(OUT) is 160 mA, within the
+recommended 300 mA ceiling.
 
 ---
 
-## 3. ネットリスト
+## 3. Netlist
 
-### 3.1 電源
+### 3.1 Power
 
-| ネット | 接続 |
+| Net | Connections |
 |---|---|
 | `V12_RAW` | J1.8, F1.1 |
 | `V12_FUSED` | F1.2, D1.A |
@@ -222,11 +258,11 @@ U1 は 500mA 定格なので 2.5倍の余裕。3V3(OUT) の外部負荷は 160mA
 
 **GND**: J1.4, D2.A, C2.2, C3.2, C4.2, C5.2, C6.2, C7.2, C8.2,
 C10.2, C11.2, C14.2, C15.2, U2.GND, U2.VSS, R4.2, Q1.E, U4.GND,
-U3.GND1〜GND7, U3.AGND, J2.VSS, **J2.TR**, J2.L1, J2.L2, J2.L3, J2.BR, J3.GND
+U3.GND1–GND7, U3.AGND, J2.VSS, **J2.TR**, J2.L1, J2.L2, J2.L3, J2.BR, J3.GND
 
-### 3.2 高側スイッチ／IG検出
+### 3.2 High-side switch / IG detection
 
-| ネット | 接続 |
+| Net | Connections |
 |---|---|
 | `IG_RAW` | J1.3, R3.1 |
 | `Q1_B` | R3.2, R4.1, Q1.B, R15.1 |
@@ -236,7 +272,7 @@ U3.GND1〜GND7, U3.AGND, J2.VSS, **J2.TR**, J2.L1, J2.L2, J2.L3, J2.BR, J3.GND
 
 ### 3.3 CAN
 
-| ネット | 接続 |
+| Net | Connections |
 |---|---|
 | `CANH` | J1.6, U2.CANH, R8.1 |
 | `CANL` | J1.5, U2.CANL, R8.2 |
@@ -253,14 +289,16 @@ U3.GND1〜GND7, U3.AGND, J2.VSS, **J2.TR**, J2.L1, J2.L2, J2.L3, J2.BR, J3.GND
 | `XTAL2` | U2.OSC2, Y1.2, C8.1 |
 | `TXNRTS` | U2.TX0RTS, U2.TX1RTS, U2.TX2RTS, R7.1 |
 
-`TXCAN`/`RXCAN` はコントローラ部とトランシーバ部を基板上で繋ぐ配線。**忘れると一切通信できない。**
+`TXCAN`/`RXCAN` are the board traces that join the controller section to the transceiver section.
+**Omit them and nothing communicates at all.**
 
-`TXNRTS` は未使用の入力3本を1本のプルアップにまとめたもの。MCP25625 の TxnRTS は
-入力専用なので短絡の危険はないが、抵抗1本を介して誤設定時の保護を残している。
+`TXNRTS` gathers three unused inputs onto one pull-up. The MCP25625's TxnRTS pins are input-only, so
+there is no short-circuit hazard, but going through one resistor keeps some protection against a
+misconfiguration.
 
 ### 3.4 MicroSD
 
-| ネット | 接続 |
+| Net | Connections |
 |---|---|
 | `SD_CS` | U3.GP5, J2.CD_DAT3, R10.1 |
 | `SD_MOSI` | U3.GP3, J2.CMD |
@@ -269,589 +307,738 @@ U3.GND1〜GND7, U3.AGND, J2.VSS, **J2.TR**, J2.L1, J2.L2, J2.L3, J2.BR, J3.GND
 | `SD_DAT12` | J2.DAT1, J2.DAT2, R12.1 |
 | `SD_CD` | U3.GP7, **J2.TL**, R13.1 |
 
-`SD_MOSI` のプルアップは削除（MCU が常時駆動するため不要）。
-`SD_DAT12` は SPI で未使用の2本を1本のプルアップにまとめたもの。
+The pull-up on `SD_MOSI` was removed (unnecessary, since the MCU drives it at all times).
+`SD_DAT12` gathers the two lines unused by SPI onto one pull-up.
 
-**カード検出は J2.TL（KiCad 公式フットプリントのパッド 9）。確定済み。**
-当初は TR/BR を検出スイッチと推定していたが誤りだった。KiCad 公式の
-`microSD_HC_Hirose_DM3AT-SF-PEJM5` フットプリントと自作フットプリントは
-14パッド中13パッドが 0.001mm 単位で一致し、公式側は検出スイッチ対を
-パッド 9・10 と番号付けしている（本書の TL・L2 に対応）。
-シンボル `Connector:Micro_SD_Card_Det_Hirose_DM3AT` も pin 9 = `DET_B`、
-pin 10 = `DET_A` と明示しており、2つの独立した資料で裏付けが取れた。
-TR・L1・L3・BR はカバーの GND 脚。
+**Card detect is J2.TL (pad 9 of the official KiCad footprint). Settled.**
+TR/BR were initially assumed to be the detect switch, which was wrong. The official KiCad
+`microSD_HC_Hirose_DM3AT-SF-PEJM5` footprint and our own footprint agree on 13 of 14 pads to within
+0.001 mm, and the official one numbers the detect switch pair as pads 9 and 10 (corresponding to TL
+and L2 in this document). The symbol `Connector:Micro_SD_Card_Det_Hirose_DM3AT` likewise states
+pin 9 = `DET_B` and pin 10 = `DET_A`, so two independent sources back it up. TR, L1, L3 and BR are
+the GND legs of the cover.
 
-旧版はスイッチの両端（TL と L2）をともに GND に落とし、検出信号を GND 脚である
-TR から取っていたため、**カードの有無に関わらず「挿入済み」と読める状態だった。**
+The older revision tied both ends of the switch (TL and L2) to GND and took the detect signal from
+TR, which is a GND leg — so **it read as "inserted" whether or not a card was present**.
 
-### 3.5 GPS・表示（LED 1個）
+### 3.5 GPS and indication (one LED)
 
-| ネット | 接続 |
+| Net | Connections |
 |---|---|
-| `GPS_RX` | U3.GP1, **J3 パッド4**（GPS モジュールの **TXD** を繋ぐ）|
-| `GPS_TX` | U3.GP0, **J3 パッド3**（GPS モジュールの **RXD** を繋ぐ）|
-| `GPS_PPS` | U3.GP6, J3 パッド5 |
+| `GPS_RX` | U3.GP1, **J3 pad 4** (connect the GPS module's **TXD**) |
+| `GPS_TX` | U3.GP0, **J3 pad 3** (connect the GPS module's **RXD**) |
+| `GPS_PPS` | U3.GP6, J3 pad 5 |
 | `LED_A` | R14.2, D6.A |
 | `LED_STATUS` | D6.K, U3.GP8 |
 
-### J3 の結線（実機で確定、2026-08-14）
+### J3 wiring (confirmed on hardware, 2026-08-14)
 
-GT-502MGG-N は 1.5m のバラ5線で出ている。**線色はデータシートに記載が無く、実機で確定した。**
+The GT-502MGG-N comes out as five bare wires 1.5 m long. **The wire colors are not documented in the
+datasheet and were determined on hardware.**
 
-| J3 パッド | シルク | ネット | Pico | 繋ぐ線 | 色 | 向き |
+| J3 pad | Silkscreen | Net | Pico | Wire | Color | Direction |
 |---|---|---|---|---|---|---|
-| 1 | V | `V3V3` | 3V3(OUT) | VCC | **赤** | — |
-| 2 | G | `GND` | GND | GND | **黒** | — |
-| 3 | R | `GPS_TX` | GP0 (UART0 TX)＜v4.1。旧 GP16＞ | **RXD** | **緑** | Pico → モジュール |
-| 4 | T | `GPS_RX` | GP1 (UART0 RX)＜v4.1。旧 GP17＞ | **TXD** | **オレンジ** | モジュール → Pico |
-| 5 | P | `GPS_PPS` | GP6＜v4.1。旧 GP18＞ | PPS | **茶** | モジュール → Pico |
+| 1 | V | `V3V3` | 3V3(OUT) | VCC | **Red** | — |
+| 2 | G | `GND` | GND | GND | **Black** | — |
+| 3 | R | `GPS_TX` | GP0 (UART0 TX) <v4.1; formerly GP16> | **RXD** | **Green** | Pico → module |
+| 4 | T | `GPS_RX` | GP1 (UART0 RX) <v4.1; formerly GP17> | **TXD** | **Orange** | module → Pico |
+| 5 | P | `GPS_PPS` | GP6 <v4.1; formerly GP18> | PPS | **Brown** | module → Pico |
 
-> **v4 でシルクをモジュール側の名前に改めた（並びは V G R T P）。**
-> `R` にはモジュールの RXD（緑）、`T` にはモジュールの TXD（オレンジ）と、
-> **線のラベルとシルクが一致する**ように直読みで配線できる。
-> v1 のシルクは基板側視点（パッド3=T / パッド4=R）で、「TXD（オレンジ）を T に」と
-> 読んで出力どうしが衝突する誤配線が実際に発生した（2026-08-14）。
-> ネットの割当自体は v1 から正しい。
+> **In v4 the silkscreen was changed to the module's names (ordered V G R T P).**
+> The module's RXD (green) goes to `R` and its TXD (orange) to `T`, so **the wire labels match the
+> silkscreen** and it can be wired by reading it off directly.
+> The v1 silkscreen was from the board's point of view (pad 3 = T / pad 4 = R), and reading it as
+> "orange TXD goes to T" actually produced a miswiring that shorted two outputs together
+> (2026-08-14). The net assignment itself has been correct since v1.
 
-**LED は 5V からのローサイド駆動。GPIO を Low にして点灯（論理反転）。**
-3.3V では緑の VF（typ 3.0V）に対し余裕が 0.3V しかなく成立しない。
+**The LED is low-side driven from 5 V. It lights when the GPIO is driven low (inverted logic).**
+At 3.3 V there is only 0.3 V of headroom against the green LED's typical VF of 3.0 V, which does not
+work.
 
-**表示は緑1個のみ。** エラーや状態の区別は点滅パターンで表現する
-（例: 常時点灯=ログ中、1Hz点滅=GPS未測位、高速点滅=SDエラー）。
-赤LED（D7）と R15 は削除し、GP5 は予備に戻した。
+**There is only one indicator, a green LED.** Errors and states are expressed as blink patterns
+(for example: solid = logging, 1 Hz blink = no GPS fix, fast blink = SD error).
+The red LED (D7) and R15 were removed and GP5 went back to being a spare.
 
-### 3.6 未接続（意図的）
+### 3.6 Deliberately unconnected
 
-| 部品 | ピン | 理由 |
+| Part | Pins | Reason |
 |---|---|---|
-| J1 | 1, 2, 7 | 車両側で未使用 |
-| U2 | 2, 25 (NC) | メーカー指定の未接続ピン |
-| U2 | 11 Rx1BF, 12 Rx0BF, 22 CLKOUT | 出力。SPIで代替可能なため開放（出力なのでフローティング可）|
-| U3 | GP14〜GP19, GP22, GP26, GP27 | 予備（v4.1 で再割当後）|
-| U3 | RUN, ADC_VREF, 3V3_EN, VBUS | 未使用 |
+| J1 | 1, 2, 7 | Unused on the vehicle side |
+| U2 | 2, 25 (NC) | Manufacturer-designated no-connect pins |
+| U2 | 11 Rx1BF, 12 Rx0BF, 22 CLKOUT | Outputs. Left open since SPI can do the job (outputs may float) |
+| U3 | GP14–GP19, GP22, GP26, GP27 | Spares (after the v4.1 reassignment) |
+| U3 | RUN, ADC_VREF, 3V3_EN, VBUS | Unused |
 
-**U2 の TxnRTS は入力なので開放禁止**（R7 でプルアップ）。Rx0BF/Rx1BF は出力なので開放可。
+**The MCP25625's TxnRTS pins are inputs and must not be left open** (pulled up by R7). Rx0BF/Rx1BF
+are outputs and may be left open.
 
-**ADC_VREF は未接続で正常。** Pico 基板上でフィルタ済み 3V3 に内部接続されている。
+**ADC_VREF being unconnected is correct.** It is internally connected to filtered 3V3 on the Pico
+board.
 
-回路図には未接続 21ピンすべてに No-Connect を明示してある（ERC 通過済み）。
+The schematic carries an explicit No-Connect on all 21 unconnected pins (ERC passes).
 
-### 3.7 Pico GPIO 割当（v4.1）
+### 3.7 Pico GPIO assignment (v4.1)
 
-**基板配置に合わせて割り当ててある。** 論理的な整理で決めた当初案は物理配置の逆で、
-CAN の SPI が microSD 側の端に載って配線不能になった（v1 で距離基準に再割当して解決）。
-**v4.1 で Pico を 180° 回転**したため各ピンが対角位置（ピン k ↔ k+20）へ移り、
-同じ距離基準で全面的に再割当した。**SPI0 と SPI1 の役割交換**
-（SD=SPI0、CAN=SPI1）が、回転後の位置で合法かつ最近傍になる組み合わせの鍵。
+**It is assigned to match the board layout.** The original plan, decided by logical tidiness, was
+the opposite of the physical layout and put CAN's SPI at the microSD end of the board, where it
+could not be routed (solved in v1 by reassigning on a distance basis).
+**Because the Pico was rotated 180° in v4.1**, every pin moved to its diagonal position
+(pin k ↔ k+20) and everything was reassigned on the same distance basis. **The swap of the SPI0 and
+SPI1 roles** (SD=SPI0, CAN=SPI1) is the key to a combination that is both legal and nearest-neighbor
+at the post-rotation positions.
 
-| ブロック | ヘッダピン | GPIO | ペリフェラル |
+| Block | Header pins | GPIO | Peripheral |
 |---|---|---|---|
-| microSD（右列、J2 接点の真横）| 4,5,6,7 | GP2〜GP5 | **SPI0** SCK/TX/RX/CSn |
-| 　同上 | 10 | GP7 | CD |
-| CAN（右列、U2 の脇）| 14,15,16,17 | GP10〜GP13 | **SPI1** SCK/TX/RX/CSn |
-| 　同上 | 12 | GP9 | INT |
-| 　同上（左列、U2 の反対フランク）| 26,27 | GP20, GP21 | STBY / RESET |
-| GPS（右列最下段、J3 の直上）| 1,2 | GP0, GP1 | **UART0** TX/RX |
-| 　同上 | 9 | GP6 | PPS |
-| LED（右列）| 11 | GP8 | GPIO（ローサイド、Low で点灯）|
-| IG 検知（左列）| 34 | GP28 | **ADC2**（v4.1 でも不変。デジタル入力では読めない — §4.7）|
+| microSD (right column, right beside J2's contacts) | 4,5,6,7 | GP2–GP5 | **SPI0** SCK/TX/RX/CSn |
+| the same | 10 | GP7 | CD |
+| CAN (right column, beside U2) | 14,15,16,17 | GP10–GP13 | **SPI1** SCK/TX/RX/CSn |
+| the same | 12 | GP9 | INT |
+| the same (left column, U2's opposite flank) | 26,27 | GP20, GP21 | STBY / RESET |
+| GPS (bottom of the right column, directly above J3) | 1,2 | GP0, GP1 | **UART0** TX/RX |
+| the same | 9 | GP6 | PPS |
+| LED (right column) | 11 | GP8 | GPIO (low side, lights when low) |
+| IG sensing (left column) | 34 | GP28 | **ADC2** (unchanged in v4.1. Cannot be read as a digital input — see §4.7) |
 
-**ファームウェアはこの割当に従うこと。** v4 以前のファームからの差分:
-SD が SPI1→**SPI0**、CAN が SPI0→**SPI1** に入れ替わり、UART0 が GP16/17→**GP0/1**、
-CD/INT/STBY/RESET/PPS/LED の GPIO 番号も上表に変更。**GP28 の ADC 設定だけは無変更。**
-基板側の検査: `mrp_brd.py` がビルド毎に全 17 ピンの「パッド→ネット」対応・
-GND 8 穴・USB 端の向きを assert している。
-
----
-
-## 4. 削除した部品と理由
-
-| 旧記号 | 部品 | 削除理由 |
-|---|---|---|
-| L1, C3, C4, D3 | 100µH、220µF、100nF、SS34 | M78AR05 が内蔵 |
-| U2, C7, C8 | AMS1117-3.3 と入出力容量 | GPS を Pico の 3V3 から供給 |
-| Q1, R1, R2, R3, D4, R9 | ラッチング電源（BAT54C 等）| IG 直結スイッチに変更 |
-| R6, R7, R8, D8, C6 | 12V センス2系統目 | IG ライン電圧の1系統に統合 |
-| D12 | 5.6V ツェナー | M78AR05 が短絡保護・サーマルシャットダウン・1A出力制限を内蔵 |
-| C1 | 22µF/50V 電解 | ユーザー判断で削除。入力上限が32V→28Vになるため D2 を SMAJ16A に変更 |
-| D13 | 12V ツェナー | Q2 ゲートを 100k/100k 分圧にして Vgs を電源の1/2に制限 |
-| R12, R13 | TxnRTS プルアップ2本 | 3ピンを1本のプルアップに統合 |
-| R16, R18 | SD の CMD と DAT1/DAT2 プルアップ | CMD は不要、DAT1/DAT2 は1本に統合 |
-| R9, C9, JP1 | CAN スプリット終端（60Ω×2 + 4.7nF + 切離しジャンパ）| ユーザー判断で 120Ω 1本に簡素化 |
-| D5 | PESD1CAN（CAN用TVS）| ユーザー判断で削除。**結線も誤っていた**（下記）|
-
-### D5 の結線誤り（削除により解消）
-
-Nexperia データシート Rev.04 の Table 2 では、PESD1CAN の
-**pin 3 が common cathode**、pin 1・2 が保護対象ラインである
-（特性表の脚注も "Measured from pin 1 to 3 or 2 to 3"、Fig 8 の応用回路も
-CANH→1・CANL→2・3→SPLIT）。
-
-旧設計は **pin 2 を GND、pin 3 を CANL** に繋いでいた。共通端子とライン端子が
-入れ替わっており、CANH–CANL 間に保護素子が直列に入って GND へ抜ける経路が無い状態だった。
-部品ごと削除したため、この誤りは解消している。
-
-### D1/D3 の型番とパッケージの不整合（B5819W に変更して解消）
-
-**SS14 は SMA（DO-214AC）にしか存在しない。** 基板のランドは SOD-123 なので、
-旧記述の「SS14 または B140」のうち SS14 を発注すると物理的に載らなかった。
-JLCPCB の在庫も SS14 は SMA のみ（C2480）。
-
-**B5819W（LCSC C8598）に変更した。** 40V / 1A の SOD-123 で、旧記述の要求
-「1A/40V・SOD-123」をそのまま満たす。順方向電圧は 1A で 0.6V max、実使用の
-約100mA では 0.3V 程度なので、クランキング時の電圧降下の見積り（下記「残課題」）は
-変わらない。JLCPCB の Basic 部品でもあるため、フィーダー費も不要になる。
-
-### チップ部品を全数 1005 → 1608 に変更
-
-きっかけは C2 の耐圧だった。C2 は V12P に載って D2 のクランプ電圧 26V まで上がるが、
-JLCPCB の Basic 部品にある 100nF 0402 は **16V 品しかない**。
-当初は C2 だけ 1608 に上げて対処した。
-
-その後、**チップ21点すべてを 1608 にしても成立するか**を実測して確認し、採用した
-（詳細は [study-1608-chips.md](study-1608-chips.md)）。
-
-| | 1005 | **1608（採用）** |
-|---|---|---|
-| チップ合計占有面積 | 37.8mm² | 91.0mm² |
-| 板サイズ | 21×61mm | **変わらず** |
-| 未配線 / DRC / 未接続 | 0 / 0 / 0 | **0 / 0 / 0** |
-| デカップリング距離 合計 | 101.0mm | **84.7mm** |
-
-面積が2.4倍になってもレイアウトは成立し、**バイパスコンデンサはむしろ IC に近くなった**。
-加えて 100nF が全数 50V になり、手はんだ・リワークも容易になる。
-C2 だけを例外扱いする処理は不要になった。
-
-### JP1 の機能不全（削除により解消）
-
-旧記述では「CAN終端の切離し。既定は閉」としていたが、実回路では JP1 は C9 と直列に
-入っているだけで、開いても R8+R9 の 120Ω はバス間に残った。文書どおりの機能を持っていなかった。
+**The firmware must follow this assignment.** Differences from firmware for v4 and earlier: SD went
+SPI1 → **SPI0**, CAN went SPI0 → **SPI1**, UART0 went GP16/17 → **GP0/1**, and the GPIO numbers for
+CD/INT/STBY/RESET/PPS/LED changed as in the table above. **Only GP28's ADC configuration is
+unchanged.**
+Board-side checks: `mrp_brd.py` asserts, on every build, the pad-to-net mapping of all 17 pins, the
+8 GND holes, and which way the USB end faces.
 
 ---
 
-## 4.5 JLCPCB 実装用の部品区分
+## 4. Removed parts and why
 
-実装を依頼するのは**表面実装 34点のみ**。スルーホールの
-**J1・U1・U3・Y1** は手付けで、`fab/MotoRecoPico-bom-tht.csv` に分けてある。
-
-| 区分 | 点数 | 部品 |
+| Old ref | Part | Reason for removal |
 |---|---|---|
-| **Basic**（フィーダー費 $0）| 26 | 抵抗13点、コンデンサ10点（全て 1608）、Q1、**D1/D3** |
-| **Extended**（$3/点）| 6 | D2、D4、F1、J2、Q2、U2 |
-| **JLC 在庫なし** | 2 | D6（サイドビューLED）、J3（GPSモジュール）— 手付けまたは支給 |
+| L1, C3, C4, D3 | 100 µH, 220 µF, 100 nF, SS34 | Built into the M78AR05 |
+| U2, C7, C8 | AMS1117-3.3 and its input/output capacitors | GPS is supplied from the Pico's 3V3 |
+| Q1, R1, R2, R3, D4, R9 | The latching supply (BAT54C etc.) | Changed to a switch driven directly by IG |
+| R6, R7, R8, D8, C6 | The second 12V sensing path | Consolidated into the single IG line voltage |
+| D12 | 5.6 V zener | The M78AR05 has built-in short-circuit protection, thermal shutdown and a 1 A output limit |
+| C1 | 22 µF/50 V electrolytic | Removed by the user's decision. The input ceiling goes 32 V → 28 V, so D2 became an SMAJ16A |
+| D13 | 12 V zener | Q2's gate uses a 100k/100k divider instead, limiting Vgs to half the supply |
+| R12, R13 | Two TxnRTS pull-ups | Three pins consolidated onto one pull-up |
+| R16, R18 | Pull-ups for the SD's CMD and DAT1/DAT2 | CMD does not need one; DAT1/DAT2 consolidated onto one |
+| R9, C9, JP1 | CAN split termination (60 Ω ×2 + 4.7 nF + a disconnect jumper) | Simplified to a single 120 Ω by the user's decision |
+| D5 | PESD1CAN (a TVS for CAN) | Removed by the user's decision. **It was also wired incorrectly** (see below) |
 
-**1608 化で C2 が Extended から Basic に移った**（1608 の 100nF は 50V が Basic）。
+### The D5 wiring error (resolved by its removal)
 
-Basic 品の LCSC 番号（すべて 0603 / 1608）:
+In Table 2 of Nexperia's datasheet Rev.04, the PESD1CAN's **pin 3 is the common cathode** and
+pins 1 and 2 are the lines being protected (the footnote to the characteristics table also says
+"Measured from pin 1 to 3 or 2 to 3", and the application circuit of Fig 8 has CANH→1, CANL→2,
+3→SPLIT).
 
-| 値 | LCSC |
+The old design connected **pin 2 to GND and pin 3 to CANL**. The common terminal and a line terminal
+were swapped, which put the protection device in series between CANH and CANL with no path to GND at
+all. The part was removed entirely, so the error is gone.
+
+### The type number and package of D1/D3 did not match (resolved by moving to the B5819W)
+
+**The SS14 only exists in SMA (DO-214AC).** The board land is SOD-123, so ordering the SS14 from the
+old description's "SS14 or B140" meant a part that physically would not fit. JLCPCB's stock of the
+SS14 is also SMA only (C2480).
+
+**It was changed to the B5819W (LCSC C8598)**, a 40 V / 1 A SOD-123 part that satisfies the old
+description's requirement of "1 A/40 V, SOD-123" exactly. Its forward voltage is 0.6 V max at 1 A,
+about 0.3 V at the roughly 100 mA actually used, so the voltage-drop estimate for cranking (see
+"Outstanding issues" below) does not change. It is also a JLCPCB Basic part, so there is no feeder
+charge either.
+
+### All chip parts changed from 1005 to 1608
+
+The trigger was C2's voltage rating. C2 sits on V12P and goes up to D2's clamping voltage of 26 V,
+but the 100 nF 0402 parts in JLCPCB's Basic list are **16 V only**. Initially C2 alone was raised to
+1608 to deal with that.
+
+Then **whether all 21 chips could be 1608** was measured and confirmed, and adopted (details in
+[study-1608-chips.md](study-1608-chips.md)).
+
+| | 1005 | **1608 (adopted)** |
+|---|---|---|
+| Total chip area | 37.8 mm² | 91.0 mm² |
+| Board size | 21×61 mm | **unchanged** |
+| Unrouted / DRC / unconnected | 0 / 0 / 0 | **0 / 0 / 0** |
+| Total decoupling distance | 101.0 mm | **84.7 mm** |
+
+The layout works even at 2.4× the area, and **the bypass capacitors actually ended up closer to the
+ICs**. On top of that every 100 nF is now 50 V, and hand soldering and rework get easier. The
+special-case handling for C2 alone is no longer needed.
+
+### JP1 did not do what it claimed (resolved by its removal)
+
+The old description said "disconnects the CAN termination; closed by default", but in the actual
+circuit JP1 was merely in series with C9: opening it still left R8+R9's 120 Ω across the bus. It did
+not have the function the document described.
+
+---
+
+## 4.5 Part categories for JLCPCB assembly
+
+Only the **34 surface-mount parts** are assembled by them. The through-hole parts
+**J1, U1, U3 and Y1** are fitted by hand and are split out into
+`fab/MotoRecoPico-bom-tht.csv`.
+
+| Category | Count | Parts |
+|---|---|---|
+| **Basic** (feeder charge $0) | 26 | 13 resistors, 10 capacitors (all 1608), Q1, **D1/D3** |
+| **Extended** ($3 each) | 6 | D2, D4, F1, J2, Q2, U2 |
+| **Not in JLC stock** | 2 | D6 (the side-view LED), J3 (the GPS module) — fitted by hand or supplied |
+
+**Moving to 1608 took C2 from Extended to Basic** (the 1608 100 nF has a 50 V Basic part).
+
+LCSC numbers of the Basic parts (all 0603 / 1608):
+
+| Value | LCSC |
 |---|---|
-| 100kΩ | C25803 |
-| 22kΩ | C31850 |
-| 10kΩ | C25804 |
-| 120Ω | C22787 |
-| 1kΩ | C21190 |
-| 100nF 50V | C14663 |
-| 22pF 50V | C1653 |
-| 10µF 10V | C19702 |
+| 100 kΩ | C25803 |
+| 22 kΩ | C31850 |
+| 10 kΩ | C25804 |
+| 120 Ω | C22787 |
+| 1 kΩ | C21190 |
+| 100 nF 50 V | C14663 |
+| 22 pF 50 V | C1653 |
+| 10 µF 10 V | C19702 |
 | MMBT3904 | C20526 |
 | B5819W | C8598 |
 
-**Basic 化できなかったものの理由**
+**Why the rest could not be made Basic**
 
-| 部品 | 理由 |
+| Part | Reason |
 |---|---|
-| Q2 | Basic の Pch は AO3401A（SOT-23-3 / 30V / **Vgs ±12V**）。ゲートは 100k/100k 分圧で Vgs = V12P/2 なので、D2 クランプ時 **13V となり定格超過**。パッケージも違う |
-| U2 | Basic には MCP2515（SOIC-18）+ TJA1051（SOIC-8）の2チップ構成しかない。SOIC-18 は 300mil 幅で**基板を10mm前後伸ばす**必要があり、$3 のために再設計する価値がない。MCP25625-E/SS（**C184944**）は Extended で在庫あり |
-| D2 | Basic の TVS は P6SMB6.8CA（SMB / 6.8V）のみ。16V スタンドオフの SMA 品なし |
-| D4 | Basic は ZMM3V3（**LL-34 MELF**）のみ。SOD-123 のツェナーなし。LL-34 に変えれば Basic 化可能 |
-| F1・J2 | Basic にリセッタブルヒューズもコネクタも**1点もない** |
-| ~~C2~~ | 全チップの 1608 化で Basic に移動。**解消済み** |
+| Q2 | The Basic P-channel part is the AO3401A (SOT-23-3 / 30 V / **Vgs ±12 V**). The gate uses a 100k/100k divider so Vgs = V12P/2, which is **13 V when D2 clamps — over the rating**. The package is different too |
+| U2 | Basic only has the two-chip combination of MCP2515 (SOIC-18) + TJA1051 (SOIC-8). The SOIC-18 is 300 mil wide and **would stretch the board by roughly 10 mm**, which is not worth a redesign to save $3. The MCP25625-E/SS (**C184944**) is in stock as Extended |
+| D2 | The only Basic TVS is the P6SMB6.8CA (SMB / 6.8 V). There is no SMA part with a 16 V standoff |
+| D4 | Basic only has the ZMM3V3 (**LL-34 MELF**). There is no SOD-123 zener. Switching to LL-34 would make it Basic |
+| F1, J2 | Basic has **not a single** resettable fuse or connector |
+| ~~C2~~ | Moved to Basic when all chips went to 1608. **Resolved** |
 
-照合に使った Basic リストはコミュニティ公開のスナップショット（691点）で、
-JLC 現行の「Basic & Promotional Extended」は 1,586点。
-上記 Extended の一部は現在フィーダー費が無料になっている可能性があるため、
-発注画面でバッジを確認すること。
+The Basic list used for this comparison is a community-published snapshot (691 parts), while JLC's
+current "Basic & Promotional Extended" has 1,586. Some of the Extended parts above may currently
+have no feeder charge, so check the badges on the ordering page.
 
 ---
 
-## 4.6 v2 改訂の記録（2026-08-08）
+## 4.6 Record of the v2 revision (2026-08-08)
 
-v1 実基板の手はんだ実装を受けた2点の変更と、それに伴う再検証。
+Two changes driven by hand-assembling a physical v1 board, and the re-verification that followed.
 
-### IG 電圧センシングの廃止
+### Retiring IG voltage sensing
 
-Pico の ADC（GP28）による IG ライン電圧測定をやめた。削除したのは
-**ADC のためだけに存在していた部品**: D4（ADC 保護ツェナー）、C12（ADC フィルタ）、
-R5（ADC タップと Q1 ベースの分離抵抗）。
+Measuring the IG line voltage with the Pico's ADC (GP28) was dropped. What was removed were
+**the parts that existed only for the ADC**: D4 (the ADC protection zener), C12 (the ADC filter) and
+R5 (the resistor isolating the ADC tap from Q1's base).
 
-**IG 検出スイッチ（キーONで電源投入）は存続。** Q1 のベースは R3/R4 の分圧点に直結した:
-- R3（100k）がベース電流を制限（IG は TVS 非搭載の線だが、100V サージでもベースへは 1mA 未満）
-- R4（22k）が IG 浮遊時にベースを GND へ落とす
-- 14V 時のベース駆動 約100µA に対し、Q2 ゲート負荷は約70µA。hFE 3 以上で飽和し、
-  MMBT3904（hFE 30〜300）に対し余裕2桁
+**The IG detection switch (power on when the key turns) remains.** Q1's base was connected directly
+to the R3/R4 divider point:
 
-**失った機能**: 電圧ログと、充電電圧低下（14.4V→12.6V）によるエンジン停止検知。
-キーOFF 前のログ閉鎖はバス情報か逐次フラッシュ設計で担保すること（§2 参照）。
+- R3 (100k) limits the base current (IG is a line with no TVS, but even a 100 V surge delivers under
+  1 mA to the base)
+- R4 (22k) pulls the base to GND when IG floats
+- Against about 100 µA of base drive at 14 V, the load on Q2's gate is about 70 µA, so it saturates
+  at an hFE of 3 or more — two orders of magnitude of margin against the MMBT3904's hFE of 30–300
 
-### GND パッドのサーマル接続化
+**What was lost**: voltage logging, and detecting an engine stop from the drop in charging voltage
+(14.4 V → 12.6 V). Closing the log before the key goes off has to be guaranteed by bus information
+or by an incremental flush design (see §2).
 
-v1 は全 GND パッドがベタ直結で、手はんだ時に熱がプレーンへ逃げて作業性が悪かった
-（設計時に想定し文書化していたトレードオフだが、実基板で許容できないと判断）。
-v2 は**全ゾーンをサーマル接続（スポーク 0.4mm / ギャップ 0.3mm、最小スポーク数 1）**にした。
+### Thermal relief on the GND pads
 
-スポーク 0.4mm の許容電流はこの基板の最大ピン電流（約200mA）に対し十分。
+In v1 every GND pad was connected directly to the pour, and heat escaped into the plane during hand
+soldering, making it hard to work with (a trade-off that was anticipated and documented at design
+time, but judged unacceptable on a physical board). In v2 **every zone uses thermal relief**
+(spoke 0.4 mm / gap 0.3 mm, minimum spoke count 1).
 
-### 2層化の試行と不成立
+The current capacity of a 0.4 mm spoke is ample against this board's maximum pin current
+(about 200 mA).
 
-部品が3点減ったため 2層で成立するか実測で確認した。結果は**不成立**。
+### The two-layer attempt, which did not work out
 
-| 条件 | 結果 |
+Since three parts had been removed, whether two layers would work was checked by measurement. The
+result was **no**.
+
+| Condition | Result |
 |---|---|
-| 2層 / 0.15mm | 未配線3本（CAN_SCK・CAN_MOSI・LED_A、20回全て）|
-| 2層 / 0.127mm（工程下限）| **配線は全数通る**が、GND のサーマルスポークが届かないパッドが**2〜6点**残る（5シード × ギャップ 0.3/0.25/0.2 の全組合せ）|
-| **4層 / 0.15mm** | **1回目で成立**。違反0・未接続0・浮き銅片0 |
+| 2 layers / 0.15 mm | 3 nets unrouted (CAN_SCK, CAN_MOSI, LED_A; in all 20 runs) |
+| 2 layers / 0.127 mm (process minimum) | **Everything routes**, but 2 to 6 pads are left without a GND thermal spoke reaching them (across all combinations of 5 seeds × gaps of 0.3/0.25/0.2) |
+| **4 layers / 0.15 mm** | **Works on the first try.** 0 violations, 0 unconnected, 0 floating copper |
 
-2層でスポークが届かないのは、外層ベタが配線で細切れになりパッド周囲に銅が残らないため。
-v1 で「サーマルにすると Pico の GND ピンが繋がらない」と記録した問題そのもので、
-部品を減らしても解消しなかった。**ベタ直結に戻せば 2層は成立する**が、
-今回の変更目的（手はんだ性）と矛盾するため採らず、4層を継続する。
+The spokes do not reach on two layers because the outer pour is chopped into fragments by the
+routing, leaving no copper around the pads. It is exactly the problem recorded in v1 as "with
+thermal relief, the Pico's GND pins do not connect", and removing parts did not fix it.
+**Going back to a direct pour connection does make two layers work**, but that contradicts the point
+of this change (hand solderability), so it was not taken and four layers continues.
 
-なお配置起因の教訓を1件追加: R5 削除後、分圧の R3/R4 が自動配置で行を跨いで離れ、
-その2パッド間（Q1_B）だけが 20回全てで配線不能になった。ゾーン内の詰め順を
-`R1,R3,R4,R2` に変えて隣接させることで解消（`mrp_brd.py` にコメントあり）。
+One more placement-related lesson to add: after R5 was removed, the auto-placer put the divider's R3
+and R4 in different rows, far apart, and the two pads between them (Q1_B) alone were unroutable in
+all 20 runs. Changing the packing order within the zone to `R1,R3,R4,R2` to make them adjacent fixed
+it (there is a comment in `mrp_brd.py`).
 
 ---
 
-## 4.7 v3 改訂の記録（2026-08-09）
+## 4.7 Record of the v3 revision (2026-08-09)
 
-### IGN OFF 遅延（ソフト電源OFF）
+### The IGN OFF delay (soft power-off)
 
-v2 では IG OFF から数ミリ秒で断電し、ログを閉じる猶予が無かった。
-v3 は2部品で「**保証0.4秒・典型0.5秒**」の猶予を作る。
+In v2 power dropped within a few milliseconds of IG OFF, leaving no time to close the log. v3
+creates a window of **"0.4 s guaranteed, 0.5 s typical"** with two parts.
 
-**C13（10µF/25V、Q2 の G–S 間 = R1 と完全並列）**
-IG OFF で Q1 が切れた後、ゲートは R1(100k) 経由でしか放電できない。
-Vgs は −7V から τ = R1×C13 で減衰し、|Vgs| > 3.5V の間 Q2 は導通を保つ。
-MLCC の DC バイアス減衰（実効 6〜7µF）込みで t = 0.69τ ≈ **0.4〜0.5s**。
+**C13 (10 µF/25 V, across Q2's G–S, i.e. exactly parallel to R1)**
+After IG OFF turns Q1 off, the gate can only discharge through R1 (100k). Vgs decays from −7 V with
+τ = R1×C13, and Q2 keeps conducting while |Vgs| > 3.5 V. Including the MLCC's DC bias derating
+(6–7 µF effective), t = 0.69τ ≈ **0.4–0.5 s**.
 
-| 副作用 | 評価 |
+| Side effect | Assessment |
 |---|---|
-| 電源ON遅延 ≈ 0.2〜0.3s | 起動シーケンスに埋没。実害なし |
-| キー接点チャタリング | RC が吸収（改善）|
-| Q2 のリニア領域通過 | 遷移時 ≤1W を 0.1〜0.3s。SOT-26 の過渡熱で許容 |
+| Power-on delay ≈ 0.2–0.3 s | Buried in the boot sequence. Harmless |
+| Key contact chatter | Absorbed by the RC (an improvement) |
+| Q2 passing through its linear region | ≤1 W for 0.1–0.3 s during the transition. Acceptable for the transient thermal capability of a SOT-26 |
 
-**フェイルセーフ**: ラッチング電源と違い、ファームウェアが暴走しても物理的に断電する。
-電池を空にするモードが存在しない。
+**Fail-safe**: unlike a latching supply, power physically drops even if the firmware hangs. There is
+no mode that can flatten the battery.
 
-**R15（10k、Q1 ベースノード → GP28）**
-Q1 のベースは自身の B-E 接合で**常に約0.7V 以下にクランプ**される
-（サージも R3 100k が制限）ため、ツェナー・分圧・フィルタが一切不要。
-IG ON で約0.65V、OFF で 0V。
+**R15 (10k, from Q1's base node to GP28)**
+Q1's base is **always clamped to about 0.7 V or less** by its own B-E junction (and surges are
+limited by R3's 100k), so no zener, divider or filter is needed at all. It reads about 0.65 V when
+IG is on and 0 V when off.
 
-> **必ず ADC で読むこと（閾値 0.35V 推奨）。** 0.7V は VIH（約2V）未満なので
-> デジタル入力では読めない。読めるのは ON/OFF のみで、v1 の電池電圧ロギングは戻らない。
+> **It must be read with the ADC (a 0.35 V threshold is recommended).** 0.7 V is below VIH
+> (about 2 V), so a digital input cannot read it. All that can be read is ON/OFF; the battery
+> voltage logging of v1 is not coming back.
 
-### ファームウェア契約
+### The firmware contract
 
-1. GP28 (ADC2) を **50ms 以下の周期**でポーリング
-2. 0.35V を下回ったら: フラッシュ → Close → リネーム → アイドル
-3. 使える時間は**保証 0.4秒**（SD の書き込みストール最悪値 〜250ms 込みで収まる）
-4. 猶予を伸ばす場合は C13 を並列追加（10µF ごとに約 +0.4s）。**R1 は変えない**
-   （Vgs 分圧比が崩れ、ロードダンプ時のゲートが ±20V 定格に近づく）
+1. Poll GP28 (ADC2) **at 50 ms or faster**
+2. When it falls below 0.35 V: flush → close → rename → idle
+3. The time available is **0.4 s guaranteed** (which accommodates a worst-case SD write stall of
+   ~250 ms)
+4. To extend the window, add C13 in parallel (about +0.4 s per 10 µF). **Do not change R1** (it
+   breaks the Vgs divider ratio and brings the gate close to its ±20 V rating during a load dump)
 
-### C7/C8 を Y1 の直近へ移設
+### Moving C7/C8 right next to Y1
 
-v2 の実測で C7/C8 が水晶から 11.1 / 9.0mm 離れ、**XTAL1 が In1（GND プレーン層）の
-中を 8.5mm 通っていた**。機能上は許容（周波数偏差は数十ppm、CAN 許容の 1/100）だが、
-16MHz の恒常アグレッサがプレーンに溝を掘る形は EMI 上筋が悪い。
+Measurements on v2 found C7/C8 11.1 / 9.0 mm from the crystal, with **XTAL1 running 8.5 mm inside
+In1 (the GND plane layer)**. Functionally acceptable (the frequency deviation is tens of ppm, a
+hundredth of what CAN tolerates), but a permanent 16 MHz aggressor carving a trench through the plane
+is poor EMI practice.
 
-Y1 はスルーホールで表面にもランドがあるため、表面の Y1 両バレルの左右
-（x13.15 / x16.85）に**明示配置**した。結果:
+Y1 is through-hole and has lands on the front side too, so they were **explicitly placed** to the
+left and right of Y1's two front-side barrels (x13.15 / x16.85). The result:
 
 | | v2 | **v3** |
 |---|---|---|
-| C7 ↔ Y1 | 11.12mm | **2.24mm** |
-| C8 ↔ Y1 | 8.96mm | **2.77mm** |
-| XTAL1 | 21.2mm・内層 8.5mm | **9.7mm・ビア0・内層0** |
-| XTAL2 | 17.1mm・ビア1 | 10.5mm・ビア1・内層0 |
+| C7 ↔ Y1 | 11.12 mm | **2.24 mm** |
+| C8 ↔ Y1 | 8.96 mm | **2.77 mm** |
+| XTAL1 | 21.2 mm, 8.5 mm on an inner layer | **9.7 mm, 0 vias, 0 inner layer** |
+| XTAL2 | 17.1 mm, 1 via | 10.5 mm, 1 via, 0 inner layer |
 
-ゾーン任せでは C6 のスピルに枠を奪われ2回失敗したため、EXPLICIT 配置にしてある
-（`mrp_brd.py` 参照。C8 は回転 270° — 90° だとピン1が遠い側を向き 4.1mm になる）。
+Left to the zone it failed twice because spill from C6 stole the slot, so it is an EXPLICIT placement
+(see `mrp_brd.py`; C8 is rotated 270° — at 90° its pin 1 faces the far side and the distance becomes
+4.1 mm).
 
-### C6・C11 の表面移動（1608 の片面集約）
+### Moving C6 and C11 to the front (consolidating 1608 on one side)
 
-裏面に残っていた 1608 の2点を表面ゾーンへ編入し、**1608 チップ 23点が全数表面**になった。
-「チップ全数表面」の自動検査も C1608 まで拡大済み。裏面は SOT/SOD/SMA/THT のみ。
+The two 1608 parts left on the back were brought into a front-side zone, so **all 23 of the 1608
+chips are on the front**. The automatic "all chips on the front" check was extended to C1608 as well.
+The back now has only SOT/SOD/SMA/THT parts.
 
 | | v2 | v3 |
 |---|---|---|
-| C6 ↔ U2.VDDA | 11.52mm（裏面・ビア経由）| **3.85mm（同一面）** |
-| C11 ↔ J2.VDD | 4.55mm(裏面・ビア経由) | 7.36mm（同一面）|
+| C6 ↔ U2.VDDA | 11.52 mm (back side, via a via) | **3.85 mm (same side)** |
+| C11 ↔ J2.VDD | 4.55 mm (back side, via a via) | 7.36 mm (same side) |
 
-C11 は数値上悪化したが、SD の高周波分は C10（4.74mm）と In2 の 3V3 プレーンが受け持ち、
-バルクの 10µF は数mm の差に鈍感なので許容した。
+C11 got numerically worse, but the SD's high-frequency content is handled by C10 (4.74 mm) and the
+3V3 plane on In2, and a 10 µF bulk capacitor is insensitive to a few millimeters, so it was accepted.
 
 ---
 
-## 4.8 v3.1: Q2 フットプリントの G/S 鏡像不具合の修正（2026-08-13）
+## 4.8 v3.1: fixing the mirrored G/S in Q2's footprint (2026-08-13)
 
-**v1〜v3 のすべてで、Q2（ZXMP6A17E6Q）のパッド対応が実部品と鏡像になっていた。**
-EAGLE ライブラリ作成時に混入した誤りで、v1 実基板のベンチ試験で発覚した。
+**In every version from v1 to v3, the pad mapping of Q2 (the ZXMP6A17E6Q) was mirrored relative to
+the real part.** The error was introduced when the EAGLE library was created, and came to light
+during bench testing of a physical v1 board.
 
-### データシートとの照合
+### Checked against the datasheet
 
-Diodes DS36685 Rev 3-2 p.1「Pin Out - Top View」（2026-08-13 に PDF を直接検証）:
+Diodes DS36685 Rev 3-2 p.1, "Pin Out - Top View" (the PDF was verified directly on 2026-08-13):
 
-| ピン | 1 | 2 | **3** | **4** | 5 | 6 |
+| Pin | 1 | 2 | **3** | **4** | 5 | 6 |
 |---|---|---|---|---|---|---|
-| 実部品 | D | D | **G** | **S** | D | D |
-| 旧ライブラリ（誤）| G | D | D | D | D | S |
+| Real part | D | D | **G** | **S** | D | D |
+| Old library (wrong) | G | D | D | D | D | S |
 
-G/S ペアの位置が鏡像のため、**実部品をどの向きで載せても成立しない**:
+With the G/S pair mirrored, **no mounting orientation of the real part works**:
 
-| 取り付け向き | 何が起きるか | ベンチでの症状 |
+| Orientation | What happens | Bench symptom |
 |---|---|---|
-| 向きA | 共通ドレイン金属が V12P・V12_SW・Q2_G を短絡 | **IG と無関係に V12_SW = 13.8V（常時ON）** |
-| 向きB（Aの180°）| G が V12P、S が分圧ノードに載り FET は永久 OFF | **V12_SW が一切上がらない** |
+| A | The common drain metal shorts V12P, V12_SW and Q2_G together | **V12_SW = 13.8 V regardless of IG (always on)** |
+| B (A rotated 180°) | G sits on V12P and S on the divider node, so the FET is permanently off | **V12_SW never comes up at all** |
 
-両症状とも v1 基板で実測され、この照合で根本原因が確定した。
+Both symptoms were measured on the v1 board, and this check pinned down the root cause.
 
-### 修正内容（v3.1）
+### What was changed (v3.1)
 
-- `mrp_design.py` の PADMAP に SOT26 の振替を追加（G→3、S→4、D→1,2,5,6）
-- カスタムシンボル `MotoRecoPico:ZXMP6A17E6Q` のピン番号を同じ対応に振り直し
-- `mrp_brd.py` に**恒久検査**を追加: Q2 のパッド→ネット対応がデータシートと
-  一致しなければビルドが失敗する
-- 再配線・全検証済み（DRC 0/0、38ネット一致、XTAL 内層0、C7/C8 ≤2.8mm 維持）。
-  副産物として 12V チェーンが 13.81 → **12.53mm** に短縮（S パッドが D1 側に移ったため）
+- Added a SOT26 remapping to PADMAP in `mrp_design.py` (G→3, S→4, D→1,2,5,6)
+- Renumbered the pins of the custom symbol `MotoRecoPico:ZXMP6A17E6Q` to the same mapping
+- Added a **permanent check** to `mrp_brd.py`: the build fails if Q2's pad-to-net mapping does not
+  agree with the datasheet
+- Rerouted and fully re-verified (DRC 0/0, 38 nets agree, 0 inner-layer XTAL, C7/C8 still ≤2.8 mm).
+  As a by-product the 12V chain shortened from 13.81 to **12.53 mm** (the S pad moved to the D1 side)
 
-### v1 実基板の応急処置（記録）
+### Field fix for the physical v1 board (for the record)
 
-G/S の2本だけ入れ替えれば成立する。マーキング読める向き（ドット左下）で**右端の2本**が
-G（手前）/S（奥）。この端を U1 側に向けて D の4本を通常はんだ、G/S の2本は足を浮かせ、
-部品S → V12P パッド（D1 カソードと導通が鳴る側）、部品G → もう一方のパッドへ
-クロスジャンパ。動作確認: IG ON/OFF で Q2_G が 7V ⇔ 13.8V、V12_SW が 13.8V ⇔ 0V。
+Swapping just the two G/S leads makes it work. With the marking readable (dot at the lower left), the
+**two leads at the right-hand end** are G (near) and S (far). Point that end toward U1, solder the
+four D leads normally, lift the two G/S leads, and cross-jumper them: the part's S to the V12P pad
+(the one that beeps as continuous with D1's cathode) and the part's G to the other pad. Verified:
+with IG on/off, Q2_G goes 7 V ⇔ 13.8 V and V12_SW goes 13.8 V ⇔ 0 V.
 
 
-## 4.9 v4 改訂の記録（2026-08-14）
+## 4.9 Record of the v4 revision (2026-08-14)
 
-### 5V 電源の小型化: M78AR05 → AP63205WU-7
+### Shrinking the 5V supply: M78AR05 → AP63205WU-7
 
-U1（SIP-3、高さ10.2mm、定格500mA）は負荷 約200mA に対して過大で、基板2番目の背高部品だった。
-AP63205WU-7（TSOT-26、3.8〜32V→5V固定、2A同期整流、1.1MHz、スペクトラム拡散EMI対策、Iq 22µA）
-＋ L1/C14/C15/C16 に置換。**ピン配置（1=FB 2=EN 3=VIN 4=GND 5=SW 6=BST）は KiCad 公式
-シンボルと DS41326 p.1 の両方で照合**（Q2 の教訓）。ビルド毎の自動検査も追加済み。
+U1 (SIP-3, 10.2 mm tall, rated 500 mA) was oversized for a load of about 200 mA and was the
+second-tallest part on the board. It was replaced by the AP63205WU-7 (TSOT-26, 3.8–32 V → fixed 5 V,
+2 A synchronous, 1.1 MHz, spread-spectrum EMI measures, Iq 22 µA) plus L1/C14/C15/C16.
+**The pinout (1=FB 2=EN 3=VIN 4=GND 5=SW 6=BST) was checked against both the official KiCad symbol
+and DS41326 p.1** (the lesson from Q2). A per-build automatic check was added as well.
 
-| 実測 | 値 |
+| Measured | Value |
 |---|---|
-| SW ノード（U4.5↔L1.1）| 2.09mm |
-| 入力コンデンサ（U4.3↔C14.1）| 3.04mm |
-| ブートストラップ（U4.6↔C16.2）| 4.00mm |
-| 12V チェーン合計 | 14.83mm |
+| SW node (U4.5 ↔ L1.1) | 2.09 mm |
+| Input capacitor (U4.3 ↔ C14.1) | 3.04 mm |
+| Bootstrap (U4.6 ↔ C16.2) | 4.00 mm |
+| 12V chain total | 14.83 mm |
 
-**最低入力 3.8V** により、クランキング時リセットの残課題が構造的に解消。
-入力上限 32V はクランプ 26V に対し余裕 6V。
+**The 3.8 V minimum input** structurally resolves the outstanding cranking-reset issue.
+The 32 V input ceiling leaves 6 V of margin over the 26 V clamp.
 
-### J1 の表面実装化
+### Moving J1 to the front side
 
-車両カプラの差し込みを基板の反対側（Pico 側）に変更。MQS の千鳥格子は左右非対称のため、
-面反転で**穴パターンごと鏡像化**した（12V 入口が x17.5 → x3.5 に移動）。
-これに伴い電源列（F1→D1→Q2→バック）も左右鏡像に組み替え、流れ順を維持した。
-ピン→ネット対応はフットプリントに追従するため自動的に正しい。
-**筐体の前提が反転**: 表面 = J1 18.1mm + Pico、裏面 = 最背 3mm。
+The vehicle connector now plugs in from the opposite side of the board (the Pico side). The MQS
+staggered grid is asymmetric left to right, so flipping the side **mirrored the hole pattern as
+well** (the 12V entry moved from x17.5 to x3.5). The power row (F1→D1→Q2→buck) was mirrored to match,
+keeping the order of flow. The pin-to-net mapping follows the footprint, so it is automatically
+correct.
+**The assumptions about the enclosure invert**: the front is J1 at 18.1 mm plus the Pico, the back is
+3 mm tall at most.
 
-### GPS シルクの T/R 修正
+### Correcting the GPS silkscreen T/R
 
-v1 のシルクは パッド3=T / パッド4=R だったが、パッド3には Pico の UART TX が配線されており、
-モジュール視点では R（モジュールの RXD 線を繋ぐ）が正しい。実機での配線時に発覚。
-mrp_fp.py の生成文字列を "VGTRP" → "VGRTP" に修正した。
+The v1 silkscreen had pad 3 = T / pad 4 = R, but pad 3 is wired to the Pico's UART TX, so from the
+module's point of view R (connect the module's RXD wire) is correct. It came to light while wiring a
+physical board. The generated string in mrp_fp.py was corrected from "VGTRP" to "VGRTP".
 
-### 配線シードの XTAL ガード
+### An XTAL guard on the routing seed
 
-v4 の再配線で、シードによっては XTAL2 が In1（GND プレーン）内を 5〜7mm 通ることが判明。
-xtal_check.py を新設し、**シード選定ループが「XTAL 両ネット内層0・ビア≤1」を
-満たさない解を自動棄却**するようにした（try_thermal.ps1 に組込み）。
+During v4's rerouting it turned out that with some seeds XTAL2 ran 5–7 mm inside In1 (the GND
+plane). xtal_check.py was added so that **the seed selection loop automatically rejects any solution
+that does not satisfy "both XTAL nets: 0 inner layer, ≤1 via"** (wired into try_thermal.ps1).
 
 ---
 
-## 4.10 v4.1 改訂の記録（2026-08-14）
+## 4.10 Record of the v4.1 revision (2026-08-14)
 
-**変更は Pico の向きと GPIO 割当のみ。部品構成・定数・穴位置は完全に不変。**
+**The only changes are the Pico's orientation and the GPIO assignment. Component selection, values
+and hole positions are completely unchanged.**
 
-### Pico の 180° 回転（面はそのまま）
+### Rotating the Pico 180° (same side)
 
-v4 で J1 が表面に来た結果、Pico の USB コネクタが 18.1mm の MQS ハウジングの
-0.6mm 隣（y=0 側）を向き、USB ケーブルが挿せなかった。ユーザー要望により
-表裏は変えず上下 180° 回転し、**USB を microSD・LED と同じ y=61 端**へ向けた。
+Once J1 came to the front in v4, the Pico's USB connector faced 0.6 mm away from the 18.1 mm MQS
+housing (the y=0 side) and the USB cable could not be plugged in. At the user's request it was
+rotated 180° in plane without changing sides, pointing **USB toward the same y=61 edge as the
+microSD and the LED**.
 
-回転が安価に済む理由（2つの対称性）:
-- 2×20 ヘッダー格子は 180° 回転対称 → **穴は1つも動かない**（v4 ドリルファイルと
-  座標一致を確認済み）。各穴に入るピンが対角（k ↔ k+20）に入れ替わるだけ
-- GND ピン（3/8/13/18 ↔ 23/28/33/38）は対称位置どうしが共に GND →
-  全 GND バレルの役割も不変
+Why the rotation is cheap (two symmetries):
 
-### GPIO の再割当（ファームウェア変更が必要）
+- The 2×20 header grid is 180°-rotationally symmetric, so **not a single hole moves** (verified
+  against the v4 drill file for coordinate agreement). Only which pin goes into which hole changes,
+  swapping diagonally (k ↔ k+20)
+- The GND pins (3/8/13/18 ↔ 23/28/33/38) are GND at both symmetric positions, so the role of every
+  GND barrel is unchanged too
 
-ピン位置が全て裏返るため、v1 と同じ「距離＋RP2350 ピン多重化の合法性」基準で
-再導出した。**SPI0 ↔ SPI1 の役割交換**が、回転後の位置で最近傍かつ合法になる鍵。
-正規の対応表は §3.7。要点: **SD=SPI0 (GP2〜5)、CAN=SPI1 (GP10〜13)、
-GPS=UART0 (GP0/1)、IG_SENSE=GP28 (ADC2) は不変。**
-`mrp_brd.py` がビルド毎に USB 端の向き・GND 8穴・全17ペリフェラルピンを assert する。
+### Reassigning the GPIO (a firmware change is required)
 
-### スティッチングビアの moat 規則（副産物の恒久修正）
+Because every pin position flips, the assignment was re-derived on the same basis as v1 — distance
+plus the legality of RP2350 pin multiplexing. **Swapping the SPI0 ↔ SPI1 roles** is the key to being
+both nearest-neighbor and legal at the post-rotation positions. The authoritative table is §3.7.
+The gist: **SD=SPI0 (GP2–5), CAN=SPI1 (GP10–13), GPS=UART0 (GP0/1), and IG_SENSE=GP28 (ADC2) is
+unchanged.**
+`mrp_brd.py` asserts, on every build, which way the USB end faces, the 8 GND holes, and all 17
+peripheral pins.
 
-回転後、3V3 ピン（パッド36、In2 プレーンから給電される唯一の穴）が J2 の
-GND パッド近傍圏に入り、1mm 格子の GND スティッチングビアに四方を包囲されて
-**In2 のサーマルスポークが全方向で塞がれ、全8シードで未接続1**という決定論的
-失敗になった。gnd_stitch.py に「**ネットを持つ非 GND のスルーホールから 2.2mm
-以内にはステッチを置かない**」moat 規則を追加して解消。以後の全リビジョンに効く。
+### The stitching-via moat rule (a permanent fix, as a by-product)
 
-### 検証結果
+After the rotation, the 3V3 pin (pad 36, the only hole fed from the In2 plane) came into the
+neighborhood of J2's GND pads, got surrounded on all sides by the 1 mm grid of GND stitching vias,
+and **had its In2 thermal spokes blocked in every direction — a deterministic 1 unconnected in all
+8 seeds**. It was resolved by adding a moat rule to gnd_stitch.py: **no stitch within 2.2 mm of a
+non-GND through-hole that has a net**. It applies to every revision from then on.
 
-- Freerouting 全数配線、DRC 違反0・未接続0（seed 3、サーマルギャップ 0.3mm）
-- compare_net 40/40 一致（回路図はネット定義から自動追従）
-- XTAL1 10.2mm（ビア0・内層0）/ XTAL2 10.4mm（ビア1・内層0）、C7 2.24 / C8 2.77mm 維持
-- In1 GND プレーン 1領域 100%（992.3mm²）、In2 3V3 プレーン 1領域、浮き銅0
-- 電源チェーン 14.83mm・バックループ各距離は v4 と同値（部品無変更）
-- 317トラック / ビア186本（うち GND 149本）
+### Verification results
 
-### 組立後の受入チェック（v4.1 実基板、2026-08-14）
+- Freerouting routed everything; 0 DRC violations, 0 unconnected (seed 3, thermal gap 0.3 mm)
+- compare_net 40/40 agree (the schematic follows automatically from the net definitions)
+- XTAL1 10.2 mm (0 vias, 0 inner layer) / XTAL2 10.4 mm (1 via, 0 inner layer); C7 2.24 / C8 2.77 mm
+  maintained
+- In1 GND plane: 1 region, 100% (992.3 mm²); In2 3V3 plane: 1 region; 0 floating copper
+- Power chain 14.83 mm, and every buck-loop distance identical to v4 (no component changes)
+- 317 tracks / 186 vias (149 of them GND)
 
-初回通電で **IG 開放のまま 5V が出た**。Q2 のゲート（パッド3）を GND 基準で測ると 0V。
-原因は **Q2 ゲートリードの未はんだ（浮き）**。PMOS はゲートが浮くと漏れ電流と
-容量結合で ON 側に寄り、テスターの入力抵抗が浮いたリードを 0V に引いて見えていた
-（パッド側は R1 経由で V12P）。再はんだで正常化。
+### Post-assembly acceptance checks (physical v4.1 board, 2026-08-14)
 
-設計で検出できない組立不良なので、完成後は必ず次を確認する:
+On first power-up, **5 V came out with IG open**. Measuring Q2's gate (pad 3) against GND gave 0 V.
+The cause was **an unsoldered (floating) Q2 gate lead**. With a floating gate a PMOS drifts toward
+the on state through leakage and capacitive coupling, and the meter's input resistance was pulling
+the floating lead to 0 V as seen (the pad side is at V12P through R1). Resoldering fixed it.
 
-| 条件 | 期待値 |
+This is an assembly defect the design cannot detect, so always check the following once a board is
+built:
+
+| Condition | Expected |
 |---|---|
-| IG 開放、V12_RAW=12V | Q2 ゲート＝ソース（≈ V12P、差 0.1V 以内）、**V12_SW ≈ 0V、5V 出ない** |
-| IG に 12V | Q2 ゲート ≈ V12P/2、V12_SW ≈ V12P、5V 出る |
-| IG を切る | 0.4〜0.5s 後に 5V が落ちる（C13 の遅延） |
+| IG open, V12_RAW=12 V | Q2 gate = source (≈ V12P, within 0.1 V), **V12_SW ≈ 0 V, no 5 V** |
+| 12 V on IG | Q2 gate ≈ V12P/2, V12_SW ≈ V12P, 5 V present |
+| IG switched off | 5 V drops 0.4–0.5 s later (C13's delay) |
 
-ゲートが 0V まで落ちている場合は短絡ではなく**ゲート浮き**もまず疑うこと
-（Q1 完全短絡でも R1/R2 分圧で V12P/2 止まりで、0V にはならない）。
+If the gate reads all the way down at 0 V, suspect **a floating gate** first rather than a short
+(even a completely shorted Q1 would stop at V12P/2 thanks to the R1/R2 divider, never 0 V).
 
 ---
 
-## 4.11 v4.2 改訂の記録（2026-08-23）
+## 4.11 Record of the v4.2 revision (2026-08-23)
 
-**v4.1 実基板の手はんだ経験を受けた改訂。部品・定数・ネット・GPIO 割当は完全に不変。**
+**A revision driven by the hand-soldering experience with a physical v4.1 board. Parts, values, nets
+and GPIO assignment are completely unchanged.**
 
-### Pico を裏面へ
+### Moving the Pico to the back side
 
-面反転はフットプリントを x=10.5 で鏡像化するだけなので、**穴は1つも動かず**、
-ピン1〜20 の列が左（x=1.61）、21〜40 が右に入れ替わる。v4.1 の GPIO 割当は
-y 方向の近さで選んであり（U2 も J2 も x 対称）、鏡像でも距離関係は保たれるため
-**再割当なし＝ファームウェア変更なし**。USB は引き続き y=61 端。
-GPS（J3、裏面右 x15）だけは GP0/1 が左列に移って約 13mm 離れるが、9600bps の
-UART 3本で問題にならず、J3 を動かすより配線の左レーンを空けておく方を優先した。
+Flipping sides only mirrors the footprint about x=10.5, so **not a single hole moves**; the column of
+pins 1–20 swaps to the left (x=1.61) and 21–40 to the right. The v4.1 GPIO assignment was chosen by
+proximity in y (and both U2 and J2 are symmetric in x), so the distance relationships survive the
+mirror and there is **no reassignment, hence no firmware change**. USB still faces the y=61 edge.
+Only GPS (J3, on the back right at x15) is affected: GP0/1 moved to the left column and are now
+about 13 mm away, which is a non-issue for three UART lines at 9600 bps — keeping the left routing
+lane clear was preferred over moving J3.
 
-効果: 表面は J1 以外すべて低背部品（U2・J2・1608 チップ 23点）になり、
-**実装・リワーク・プロービングが Pico を外さずにできる**。
-裏面の電源ポケット・Y1・J3 は Pico の下（ソケット高 8.5mm）に入る。
-**J3 の GPS 配線はんだ付けは Pico を抜いて行う**こと。
+The effect: everything on the front except J1 is now a low-profile part (U2, J2, and the 23 1608
+chips), so **assembly, rework and probing can be done without removing the Pico**.
+The power pocket, Y1 and J3 on the back fit under the Pico (socket height 8.5 mm).
+**Soldering the GPS wires at J3 must be done with the Pico removed.**
 
-### Q2 の手はんだ用ランド
+### A hand-soldering land for Q2
 
-v4.1 の SOT-23-6 標準ランド（1.3×0.6mm）はパッドが短く、ゲートリードの未はんだ
-（§4.10 受入チェック）を招いた。**U4 と同一の TSOT-23-6_HandSoldering
-（2.0×0.65mm、外側に 0.6mm 長い）** に変更。幅 6mm になり F1/D1 の列に
-収まらないため、右列に 90° 立てて配置（S/G が D1 側の列、ドレインが基板端側）。
-パッド番号は JEDEC 順のまま → `PADMAP['SOT26']` と **G=3 / S=4 のビルド毎 assert はそのまま有効**。
+The standard SOT-23-6 land of v4.1 (1.3×0.6 mm) had short pads and invited the unsoldered gate lead
+(see the §4.10 acceptance checks). It was changed to **the same TSOT-23-6_HandSoldering land as U4**
+(2.0×0.65 mm, 0.6 mm longer on the outside). That makes it 6 mm wide, which does not fit in the F1/D1
+row, so it is stood on end at 90° in the right-hand column (S/G in the column toward D1, the drain
+toward the board edge). The pad numbering stays in JEDEC order, so `PADMAP['SOT26']` and **the
+per-build assertion of G=3 / S=4 remain in force**.
 
-### L1 の自作ランド
+### A custom land for L1
 
-ASPI-4030S の標準ランド（1.1×3.4mm、外縁 2.05）は 4×4 本体の外に銅箔がほぼ無く、
-U4 の SW パッドとも近接していた。`mrp_fp.py` で**各パッドを外側へ 1.0mm 延長**
-（2.1×3.4mm、外縁 3.05）した `L_4030_HandSolder` を生成し、**90° 回転**して
-パッドが ±y を向くようにした。SW 側パッドは U4 の SW 列の横（4.1mm）、V5 側は
-その下の C15 に直結（3.1mm）。
+The standard land for the ASPI-4030S (1.1×3.4 mm, outer edge 2.05) had almost no copper outside the
+4×4 body and was also close to U4's SW pad. `mrp_fp.py` generates `L_4030_HandSolder` with
+**each pad extended 1.0 mm outwards** (2.1×3.4 mm, outer edge 3.05), and it is **rotated 90°** so the
+pads face ±y. The SW-side pad sits next to U4's SW column (4.1 mm) and the V5 side connects directly
+to C15 below it (3.1 mm).
 
-### 裏面ポケットの組み替え
+### Rearranging the back-side pocket
 
-Q2 の立て置きと L1 の回転で幅を取るため、U4 を 1mm 下げ、C14 を Q2 の下、
-C16 を U4 の下、C15 を L1 の V5 パッド直下に並べ替え、D2・Q1・D3 のゾーンを
-3〜4mm 下へずらした。配置は全て `mrp_brd.py` の EXPLICIT／ZONES に記録。
+To make room for Q2 standing on end and L1 rotating, U4 moved 1 mm down, C14 went under Q2, C16 under
+U4, C15 directly below L1's V5 pad, and the zones for D2, Q1 and D3 shifted 3–4 mm down. Every
+placement is recorded in the EXPLICIT / ZONES tables of `mrp_brd.py`.
 
-**R15 は CAN 終端バンドの左端（x≈3.2、Q1 の真裏）へ。** v4.1 では左列にあった GP28 に
-寄せて x≈10〜12.8 に置いていたが、そこは U2.OSC2（10.8, 29.5）→ Y1.2（15.0, 32.6）の
-直線上で、最初の 8 シードは XTAL2 が In1 プレーンに潜るか未配線が残るかで全滅した。
-GP28 は面反転で右列（x19.39）に移り中央に置く理由が消えたので、左端へ退避して
-XTAL2 の表面通路を空けた（IG_SENSE は DC の ADC 線なので基板を一度横切っても問題ない）。
+**R15 moved to the left end of the CAN termination band (x≈3.2, directly behind Q1).** In v4.1 it was
+placed at x≈10–12.8, next to GP28 in the left column, but that is on the straight line from U2.OSC2
+(10.8, 29.5) to Y1.2 (15.0, 32.6), and the first 8 seeds all failed with either XTAL2 diving into the
+In1 plane or nets left unrouted. GP28 moved to the right column (x19.39) with the side flip, so there
+was no longer any reason to keep R15 in the middle; it retreated to the left edge and freed up a
+surface corridor for XTAL2 (IG_SENSE is a DC ADC line, so crossing the board once is harmless).
 
-**裏面左端の電源スタック（L1・C15・D2・Q1・D3）は Pico 左列パッドから 2.5mm 離す。**
-面反転で CAN の SPI 4 本は**左列**（パッド14〜17、y17〜25）から出るのに、U2 の SPI ピンは
-上段の**右端**（x≈13〜14.7）にある。表側は U2 上の 1608 デカップリング列が壁、裏側は
-左端スタックが隙間 0.5mm の縦壁になり、Pico パッドとの間に 1.3mm しか残らず
-**CAN_MISO が 20 シード中 19 で未配線**になった。スタック全体を 1.2mm 右へ寄せて
-（L1 左端 x4.9、D2/Q1/D3 左端 x4.0）2.5mm のレーンを確保した。
+**The power stack at the left edge of the back side (L1, C15, D2, Q1, D3) is kept 2.5 mm from the
+Pico's left pad column.** With the side flip, CAN's four SPI lines come out of **the left column**
+(pads 14–17, y17–25) while U2's SPI pins are at **the right end** of its upper row (x≈13–14.7). On
+the front the row of 1608 decoupling above U2 is a wall, and on the back the left-edge stack is a
+vertical wall with only 0.5 mm of gap, leaving just 1.3 mm between it and the Pico pads —
+**CAN_MISO was unrouted in 19 of 20 seeds**. Shifting the whole stack 1.2 mm to the right (L1's left
+edge to x4.9, D2/Q1/D3's to x4.0) secured a 2.5 mm lane.
 
-| 区間 | v4.1 | **v4.2** |
+| Segment | v4.1 | **v4.2** |
 |---|---|---|
-| 電源チェーン合計（J1.8 → U4.VIN）| 14.83mm | 15.12mm |
-| SW ノード（U4.SW ↔ L1）| 2.09mm | 3.99mm |
-| 入力コンデンサ（U4.VIN ↔ C14）| 3.04mm | 2.90mm |
-| 出力コンデンサ（L1 ↔ C15）| 4.10mm | 3.07mm |
-| ブートストラップ（U4.BST ↔ C16）| 4.00mm | 4.03mm |
+| Power chain total (J1.8 → U4.VIN) | 14.83 mm | 15.12 mm |
+| SW node (U4.SW ↔ L1) | 2.09 mm | 3.99 mm |
+| Input capacitor (U4.VIN ↔ C14) | 3.04 mm | 2.90 mm |
+| Output capacitor (L1 ↔ C15) | 4.10 mm | 3.07 mm |
+| Bootstrap (U4.BST ↔ C16) | 4.00 mm | 4.03 mm |
 
-SW ノードは 2mm 伸びたが、1.1MHz・0.2A の用途では許容（パッドが広がった分、
-はんだ付け品質のほうが効く）。
+The SW node grew by 2 mm, which is acceptable at 1.1 MHz and 0.2 A (with wider pads, solder joint
+quality matters more).
 
-### 回路図の手配置レイアウトへの刷新（2026-08-26）
+### Reworking the schematic into a hand-placed layout (2026-08-26)
 
-見づらさの指摘を受け、回路図の生成を `gen_ksch3.py`（1ブロック1列＋帯状自動配線）から
-**`gen_ksch4.py`（全部品・全配線を手書き座標で配置）** に置き換えた。採った作法は
-定石どおり: 信号は左→右（J1 → 電源部 → MCU → SD/GPS/LED）、電位は上→下
-（12V レール上・GND シンボル下向き）、高側スイッチは縦描き、プルアップ・パスコンは
-縦置き、ブロック内は実配線・ブロック間はラベル、電源シンボルの `#PWR` 参照名は非表示。
-**結線の正しさはレイアウトに依存しない**: 生成毎に内部のショート/接続検査が走り、
-さらに kicad-cli のネットリスト → compare_net で mrp_design.NETS と 40/40 一致、
-ERC は既知の U3 ピンタイプ注記 1 件のみであることを確認済み。A3 1枚。
+After it was pointed out as hard to read, schematic generation was replaced: from `gen_ksch3.py`
+(one column per block with banded auto-routing) to **`gen_ksch4.py`, which places every component
+and every wire at hand-written coordinates**. The conventions adopted are the standard ones: signals
+left to right (J1 → power section → MCU → SD/GPS/LED), potential top to bottom (the 12V rail at the
+top, GND symbols pointing down), the high-side switch drawn vertically, pull-ups and bypass
+capacitors placed vertically, real wires within a block and labels between blocks, and the `#PWR`
+reference names of power symbols hidden.
+**Correctness of the connections does not depend on the layout**: an internal short/connection check
+runs on every generation, and beyond that the kicad-cli netlist is compared with compare_net against
+mrp_design.NETS for 40/40 agreement, and ERC is confirmed to show only the one known note about a U3
+pin type. One A3 sheet.
 
-### 検証結果
+### Verification results
 
-- Freerouting 全数配線、DRC 違反0・未接続0（seed 8／12、サーマルギャップ 0.3mm。
-  最初の 20 シードは R15 と左端スタックの問題で全滅 → 上記2点の修正後に成立）
-- compare_net 40/40 一致、ERC は既知の U3 ピンタイプ注記 1 件のみ
-- U3 の 40 穴の座標は v4 / v4.1 と完全一致（ドリルファイル比較）
-- XTAL1 9.7mm（ビア0・内層0）/ XTAL2 14.6mm（**ビア0**・内層0）、C7 2.24 / C8 2.77mm 維持
-- In1 GND プレーン 1領域 100%（972.2mm²）、In2 3V3 プレーン 1領域（881.1mm²）、浮き銅0
-  （island_check にパッド接触判定を追加 — U3 パッド3 に繋がる 0.3mm² のスポーク断片を誤検出していた）
-- 電源チェーン 15.12mm、SW 3.99 / 入力 2.90 / 出力 3.07 / BST 4.03mm
-- 328トラック / ビア182本（うち GND 137本）。内層の信号: In1 158mm / In2 145mm
-  （v4.1 の 120 / 50mm から増。Pico 裏面化で左右列の役割が入れ替わり、配線が厳しくなったぶん
-  ルータが内層を使った。プレーンはどちらも 1 領域 100% で分断なし）
-- 製造データ: BOM 38 SMT + 3 THT（J1・U3・Y1）、CPL 38、クロスチェック一致。
-  **BOM は毎回回路図から再生成する**（fab_all.ps1）。手で追記した行（`Ver4.1`）は消えるので、
-  JLC 用の注記は別ファイルに
+- Freerouting routed everything; 0 DRC violations, 0 unconnected (seed 8 of 12, thermal gap 0.3 mm.
+  The first 20 seeds all failed because of the R15 and left-edge-stack problems; it worked after the
+  two fixes above)
+- compare_net 40/40 agree; ERC shows only the one known note about a U3 pin type
+- The coordinates of U3's 40 holes agree exactly with v4 and v4.1 (drill file comparison)
+- XTAL1 9.7 mm (0 vias, 0 inner layer) / XTAL2 14.6 mm (**0 vias**, 0 inner layer); C7 2.24 /
+  C8 2.77 mm maintained
+- In1 GND plane: 1 region, 100% (972.2 mm²); In2 3V3 plane: 1 region (881.1 mm²); 0 floating copper
+  (a pad-contact test was added to island_check — it had been falsely flagging a 0.3 mm² spoke
+  fragment connected to U3's pad 3)
+- Power chain 15.12 mm; SW 3.99 / input 2.90 / output 3.07 / BST 4.03 mm
+- 328 tracks / 182 vias (137 of them GND). Inner-layer signal: In1 158 mm / In2 145 mm
+  (up from 120 / 50 mm in v4.1. Moving the Pico to the back swapped the roles of the left and right
+  columns, and the router used the inner layers for the extra difficulty. Both planes are still one
+  region at 100%, undivided)
+- Fabrication data: BOM 38 SMT + 3 THT (J1, U3, Y1), CPL 38, cross-check agrees.
+  **The BOM is regenerated from the schematic every time** (fab_all.ps1). Hand-added rows (`Ver4.1`)
+  are erased, so notes for JLC belong in a separate file
 
 ---
 
-## 5. 残課題
+## 4.12 Record of the v5 revision (2026-10-16) — the JLCPCB-assembled version
 
-| 項目 | 内容 |
+**A variant of the generation system, `MRP_ASSY=jlc`** (the default `hand` is v4.2). The reasoning
+and sources for the part selection are in [study-jlc-assembly.md](study-jlc-assembly.md).
+
+### Configuration
+
+| Item | hand (v4.2) | **jlc (v5)** |
+|---|---|---|
+| Chips | all 1608 | **still 1608 (0603)** (C13=0805/25 V, C15=0805, C14=1206/50 V). It was initially designed at 0402, but JLCPCB raised a **tombstoning warning for 0402 assembly on a HASL finish** and required ENIG (+$25), so it went back to 0603. With the holes gone there is enough room for 0603 to fit entirely on the F side as well, and it worked on the first seed. Side benefits: every 100 nF is a 50 V Basic part, and the LCSC numbers for the resistors are the ones already verified in §4.5. A 0402 version can still be generated with `MRP_CHIP=1005` |
+| Q2 | ZXMP6A17E6Q (SOT-26, hand-soldering land) | **SI2309** (SOT-23, 1=G/2=S/3=D. LCSC C10493) |
+| Y1 | HC-49/S THT, back side | **3225 SMD, front side** (X322516MLB4SI, Basic). C7/C8 = 12 pF, lid grounded |
+| U4/L1 | extended hand-soldering lands | standard lands (TSOT-23-6 / ASPI-4030S) |
+| Pico | socket on the back (40 THT holes) | **soldered directly by its castellations on the back** (custom `Pico2-SMD-Flush`, with pads stopping 0.3 mm inside the board edge. **Zero holes**) |
+| GPS | J3 pads (back side) | **removed from the board**. The module's wires go straight to the Pico |
+| D6 | back side center, y59.8 | **moved to x17.3** (to clear the Pico's USB connector; the emitting face stays at y=61) |
+| Design rules | 0.15 mm | **0.127 mm** (with margin over JLC's 4-layer minimum of 0.09) |
+| Assembly | all hand soldered | **JLC single-sided SMT, 37 parts**. Hand work = the Pico, D6 and J1 only |
+
+### Design notes
+
+- **Losing the through-holes was the biggest routing win**: the socket's 40 holes and Y1's 2 holes are
+  gone, taking the routable width on the front from 15.2 mm to nearly the full width. It absorbed the
+  13 parts that moved over and still got **DRC 0/0 on the first seed** (v4.2 only worked after 20
+  seeds had failed)
+- The Pico's SMD pads overhang the board edge by 0.79 mm in the standard KiCad footprint (which
+  assumes a wider carrier), so `Pico2-SMD-Flush` was generated, stopping 0.3 mm inside the edge. The
+  overlap with the module's underside lands is about 1.1 mm, and it can be hand soldered through the
+  castellation slots
+- Q2's new pad map (G=1/S=2/D=3) is **asserted on every build**, as v3.1 taught. The SI2309 is worse
+  than the current part on Id/Rds (2 A/0.2 Ω) but has 30× the margin against the 0.3 A load. It is
+  not AEC-Q101 qualified
+- Moving Y1 to 3225 made XTAL as short as possible on the surface: **XTAL1 7.1 mm / XTAL2 13.8 mm,
+  0 vias, 0 inner layer**, with C7/C8 at 1.84 mm each on the same side
+- An **LCSC column** is added to the BOM automatically (verified numbers only; blanks are to be
+  chosen at order time)
+
+### Updating to Freerouting 2.5.0 (2026-10-17)
+
+The routing engine was updated from 2.2.4 to **2.5.0 (the MSI/jpackage build, in
+`E:\Claude\_tools\fr25msi`)** and the v5 board was rerouted. What the migration revealed:
+
+- **The native CLI build (freerouting-cli) is unusable**: it crashes inside the autorouting loop with
+  a GraalVM native-image serialization exception (BoardSnapshotManager). The MSI build is fine
+- **`-oit` (cut off improvement) was removed.** The optimizer stops on its own criteria, so it is run
+  with `-mp 20` (about 50 seconds per seed). The format of the result lines also changed, so
+  try_thermal's parser was updated
+- It now **fans out every SMD pad with a via**, which meant (1) the 0.095 mm neck-down at the pad
+  escape conflicted with the old 0.127 minimum width → the jlc variant's minimum width constraint was
+  relaxed to JLC's 4-layer manufacturing minimum of **0.09 mm** (normal routing width stays 0.127),
+  (2) XTAL nets tend to pick up vias → xtal_check was adjusted to "0 inner layer strictly, ≤2 vias",
+  and (3) the inner planes split more easily → **plane_gate.py was added** (rejecting any seed that
+  leaves a fragment of 10 mm² or more in the In1 GND)
+- Results for the seed adopted: DRC 0/0, **XTAL1 13.1 mm / XTAL2 5.3 mm (both 0 vias, 0 inner
+  layer)**, In1 GND **1 region, 100% (1069.8 mm²)**, In2 1 region, 0 floating copper, compare_net
+  37/37. 389 tracks / 237 vias (178 of them GND). Equivalent quality to 2.2.4's final result
+
+### J4: adding solder pads for a direct connection (2026-10-18)
+
+So that in future the **5 wires for power, IGN, GND and CANH/CANL can be soldered directly** to the
+vehicle without going through the MQS connector, 5 bare pads were added in the 1.9 mm band between
+J1 and the board edge (y=0) — in the jlc variant only.
+
+- **Footprint** `PAD-5P-DIRECT` (custom, generated by mrp_fp.py): SMD pads 2.4×1.8 mm on a 4.0 mm
+  pitch. Silkscreen letters L / H / I / G / V (0.7 mm) are marked next to each pad
+- **Side and order**: the Pico mounting side (the B side). Seen from the back, left to right:
+  **L, H, I, G, V** (= CANL, CANH, IGN, GND, 12V). **That is exactly the same left-to-right order as
+  the corresponding pins of J1**, so the five connections just drop straight down with no crossings
+  and no vias (the original V..L order was reversed because every net crossed the board and needed
+  vias). Center x=10.0 (0.5 mm left of the board center), giving 0.59 mm clearance between the end
+  silkscreen letters and the edge
+- **Connections**: V connects **upstream of F1 (V12_RAW, the same node as J1.8)**, so the PPTC still
+  protects a directly wired supply. I=IG_RAW, G=GND, H=CANH and L=CANL are in parallel with the
+  corresponding J1 pins
+- **The traces are written directly by script (0 vias)**: dsn_export hides J4 from the router (and
+  also puts a keepout in the y<2.8 band on the B side), and after importing the session ses_import
+  draws the five traces as straight plus 45° segments, **0.4 mm wide on the B side, from J1's
+  through-hole barrels**. The rear-row pins (CANL/CANH/12V) drop straight down between the front-row
+  barrels to y=2.8 and enter their pads diagonally. The front-row pins (IGN/GND) connect with a
+  single diagonal segment
+- **Excluded from the BOM/CPL**: being copper only with no physical part, the schematic symbol is
+  marked `in_bom no` and the footprint carries the "exclude from position files" attribute, so it
+  appears in none of the BOM, the CPL or the hand-soldering list (managed by the `NO_BOM` set in
+  mrp_design)
+- Verification (2026-10-18, seed 6 / gap 0.3): compare_net 37/37, only the one known ERC note,
+  **DRC 0/0**, the five J4 traces 0.4 mm wide on the B side with **0 vias** straight from J1's
+  barrels, XTAL1 14.6 mm / XTAL2 5.3 mm (0 vias, 0 inner layer), In1 GND 1052 mm² (the only fragment
+  is 1.8 mm²), 0 floating copper.
+  Alongside this, drc_detail.py was added to print the breakdown of DRC violations when a seed is
+  rejected (the recurring violations=2 turned out to be a neck-down where the router thins to
+  0.076 mm around y20.5 — a seed-dependent phenomenon unrelated to J4)
+
+### Verification results (the first v5)
+
+- Seed 1 / gap 0.3 gives **0 DRC violations and 0 unconnected** (both the 0402 and the 0603 version).
+  compare_net **37/37** agree; ERC shows only the one known note about a U3 pin type
+- In1 GND plane: 1 region, 100% (1139.6 mm²); In2 3V3: 1 region (1026.9 mm²); 0 floating copper
+- Power chain 14.9 mm; buck loop SW 4.2 / input 2.3 / output 5.0 / BST 3.9 mm
+- Fabrication data: BOM 39 SMT + 1 THT (J1), CPL-top 37 parts, cross-check agrees
+
+---
+
+## 5. Outstanding issues
+
+| Item | Details |
 |---|---|
-| 車両3番ピン | 98µA の負荷で問題ないか、車種の回路図で確認 |
-| CAN 終端 | R8 の 120Ω は常時有効。既に終端されたバスに割り込むと通信不良の恐れ（上記「CAN 終端は常時有効」参照）|
-| 負方向サージ | D1（B5819W）の逆耐圧は 40V。D2 は D1 の後ろにあり入力側の負サージを見ない。ISO 7637-2 相当まで見るなら D1 の高耐圧化か D2 の双方向化＋前置が必要 |
+| Vehicle pin 3 | Confirm against the bike's own schematic that a 98 µA load is acceptable |
+| CAN termination | R8's 120 Ω is always on. Inserting into an already terminated bus risks communication failure (see "CAN termination is always on" above) |
+| Negative surges | D1's (B5819W) reverse rating is 40 V. D2 is behind D1 and never sees a negative surge on the input side. To cover something like ISO 7637-2, D1 needs a higher rating, or D2 needs to be bidirectional and moved ahead of it |
 
-**判断済み**（リスクを認識したうえで現状のまま進めるもの）
+**Decided** (items knowingly left as they are)
 
-| 項目 | 判断 |
+| Item | Decision |
 |---|---|
-| **F1 の耐圧 16V** | 1206 で 1.1A hold の PPTC は **16V が上限**（他は 6V・8V）。しかも F1 は **D2（TVS）より前段**（J1.8 → F1 → D1 → D2）にあり、車両側サージをクランプされずに直接受ける唯一の部品。24V/30V 品は 1812 などサイズアップが必要で基板変更を伴うため、**ユーザー判断で 16V のまま進める**（2026-07-31）。Littelfuse **1206L110/16WR** を想定 |
+| **F1's 16 V rating** | For a 1206 PPTC with 1.1 A hold, **16 V is the ceiling** (the others are 6 V and 8 V). On top of that, F1 is **upstream of D2 (the TVS)** (J1.8 → F1 → D1 → D2), making it the only part that takes vehicle-side surges without them being clamped. A 24 V/30 V part would need a larger size such as 1812 and therefore a board change, so **by the user's decision it stays at 16 V** (2026-07-31). Littelfuse **1206L110/16WR** is the intended part |
 
-**解決済み**（旧・残課題）
+**Resolved** (formerly outstanding)
 
-| 項目 | 結果 |
+| Item | Result |
 |---|---|
-| **J3 のシルク T / R** | **v4 で解消。** シルクをモジュール側視点（パッド3=R / パッド4=T、並び V G R T P）に改め、線のラベルと直読みで一致するようにした（3.5節参照）。v1 基板は基板側視点のため引き続き注意 |
-| **GPS 線色** | 実機で確定（2026-08-14）。**赤=VCC / 黒=GND / オレンジ=TXD / 緑=RXD / 茶=PPS**。J3 への割当は 3.5節の表を参照 |
-| **GPS のボーレート** | 実機で確定（2026-08-14）。**9600bps**。ファームの既定値どおり |
-| クランキング時の電圧降下 | **v4 で解消。** AP63205 の最低入力は 3.8V。F1+D1 の約0.4V を引いても、電池が 4.2V まで落ちない限り 5V 系は動き続ける（〜5.6V 以下では出力が入力に追従）|
-| DM3AT 補助パッドの役割 | KiCad 公式フットプリントとシンボルで確定。検出スイッチは TL・L2（公式のパッド 9・10）|
-| DM3AT パターン禁止領域 | KiCad 公式フットプリントが禁止領域5個を保持しており、DRC で検証済み |
-| ケース | v4.2 時点: 表面 = J1（18.1mm）のみ（U2・J2・1608 チップは露出）、裏面 = Pico（ソケット 8.5mm ＋ 本体、USB は y=61 端）とその下の部品（最背 3mm）。開口は y=61 端面に SD（表面）・USB（裏面）・LED を集約、y=0 端は MQS のみ |
+| **J3's silkscreen T / R** | **Resolved in v4.** The silkscreen was changed to the module's point of view (pad 3 = R / pad 4 = T, ordered V G R T P) so the wire labels match when read directly (see §3.5). The v1 board is from the board's point of view, so continue to watch out there |
+| **GPS wire colors** | Determined on hardware (2026-08-14). **Red=VCC / black=GND / orange=TXD / green=RXD / brown=PPS**. For the assignment to J3, see the table in §3.5 |
+| **GPS baud rate** | Determined on hardware (2026-08-14). **9600 bps**, exactly the firmware default |
+| Voltage drop during cranking | **Resolved in v4.** The AP63205's minimum input is 3.8 V. Even subtracting about 0.4 V for F1+D1, the 5 V rail keeps running unless the battery drops to 4.2 V (below about 5.6 V the output follows the input) |
+| The role of DM3AT's auxiliary pads | Settled by the official KiCad footprint and symbol. The detect switch is TL and L2 (pads 9 and 10 officially) |
+| DM3AT's keep-out areas | The official KiCad footprint carries all 5 keep-out areas, verified by DRC |
+| Enclosure | As of v4.2: the front has only J1 (18.1 mm) — U2, J2 and the 1608 chips are exposed; the back has the Pico (8.5 mm socket plus the module, with USB at the y=61 edge) and the parts underneath it (3 mm tallest). Openings are concentrated on the y=61 end face, with SD (front), USB (back) and the LED; the y=0 end has only MQS |
