@@ -4,8 +4,9 @@ import sys, io, os
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 from openpyxl import load_workbook
 
-RECALC = os.path.join(os.environ['TEMP'], 'lorecalc', 'MotoRecoPico-部品購入先.xlsx')
+RECALC = os.path.join(os.environ['TEMP'], 'lorecalc', 'MotoRecoPico-parts-sourcing.xlsx')
 ERRS = ('#REF!', '#NAME?', '#VALUE!', '#DIV/0!', '#N/A', '#NULL!', '#NUM!')
+SHEET = 'Sourcing'
 
 wb = load_workbook(RECALC, data_only=True)
 bad = 0
@@ -17,18 +18,18 @@ for ws in wb.worksheets:
                 bad += 1
 print(f"formula errors: {bad}")
 
-ws = wb['購入先一覧']
+ws = wb[SHEET]
 qty = [ws.cell(row=r, column=4).value for r in range(6, 29)]
 qty = [q for q in qty if isinstance(q, int)]
 print(f"rows with a quantity: {len(qty)}, python sum = {sum(qty)}")
 for r in range(26, 32):
     v = ws.cell(row=r, column=4).value
-    if v is not None and ws.cell(row=r, column=3).value == '合計':
+    if v is not None and ws.cell(row=r, column=3).value == 'Total':
         print(f"total cell D{r} (cached) = {v}")
 
 wb2 = load_workbook(RECALC)
 for r in range(26, 32):
-    v = wb2['購入先一覧'].cell(row=r, column=4).value
+    v = wb2[SHEET].cell(row=r, column=4).value
     if isinstance(v, str) and v.startswith('='):
         print(f"formula at D{r}: {v}")
 

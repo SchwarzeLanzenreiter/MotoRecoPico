@@ -5,88 +5,89 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-OUT = r"E:\Claude\MotoRecoPico\docs\MotoRecoPico-部品購入先.xlsx"
+OUT = r"E:\Claude\MotoRecoPico\docs\MotoRecoPico-parts-sourcing.xlsx"
 FONT = 'Arial'
 
 AKI = 'https://akizukidenshi.com/catalog/g/g{}/'
 MARU_Q = 'https://www.marutsu.co.jp/GoodsListNavi.jsp?q={}'
 
-# 品目, 型番/値, パッケージ, 数量, 使用箇所, 秋月(text,url), マルツ, Mouser, DigiKey, 備考
+# category, part/value, package, qty, used in, Akizuki(text,url), Marutsu, Mouser, DigiKey, note
 N = (None, None)
 ROWS = [
-    ('抵抗', '100kΩ 1/10W', '1608 (0603)', 3, 'R1, R2, R3',
-     ('100個入 ¥150 (130357)', AKI.format('130357')),
+    ('Resistor', '100kOhm 1/10W', '1608 (0603)', 3, 'R1, R2, R3',
+     ('pack of 100, Y150 (130357)', AKI.format('130357')),
      ('RC0603FR-07100KL', MARU_Q.format('RC0603FR-07100KL')), N, N, ''),
-    ('抵抗', '22kΩ 1/10W', '1608 (0603)', 1, 'R4',
-     ('小分けなし', None),
+    ('Resistor', '22kOhm 1/10W', '1608 (0603)', 1, 'R4',
+     ('no small pack', None),
      ('RC0603FR-0722KL', MARU_Q.format('RC0603FR-0722KL')), N, N,
-     '秋月は1608の22kΩを小分けで扱っていない'),
-    ('抵抗', '10kΩ 1/10W', '1608 (0603)', 7, 'R6, R7, R10-R13, R15 (IG検知)',
-     ('100個入 ¥150 (130355)', AKI.format('130355')),
+     'Akizuki does not carry 1608 22kOhm in a small pack'),
+    ('Resistor', '10kOhm 1/10W', '1608 (0603)', 7, 'R6, R7, R10-R13, R15 (IG sense)',
+     ('pack of 100, Y150 (130355)', AKI.format('130355')),
      ('RC0603FR-0710KL', MARU_Q.format('RC0603FR-0710KL')), N, N, ''),
-    ('抵抗', '120Ω 1/10W', '1608 (0603)', 1, 'R8 (CAN終端)',
-     ('5000個リール ¥980 (130332)', AKI.format('130332')),
+    ('Resistor', '120Ohm 1/10W', '1608 (0603)', 1, 'R8 (CAN termination)',
+     ('reel of 5000, Y980 (130332)', AKI.format('130332')),
      ('RC0603FR-07120RL', MARU_Q.format('RC0603FR-07120RL')), N, N,
-     '秋月はリールのみ。1本だけ要るのでマルツ推奨'),
-    ('抵抗', '1kΩ 1/10W', '1608 (0603)', 1, 'R14',
-     ('5000個リール ¥980 (114122)', AKI.format('114122')),
+     'Akizuki has reels only. Only one is needed, so Marutsu is recommended'),
+    ('Resistor', '1kOhm 1/10W', '1608 (0603)', 1, 'R14',
+     ('reel of 5000, Y980 (114122)', AKI.format('114122')),
      ('RC0603FR-071KL', MARU_Q.format('RC0603FR-071KL')), N, N,
-     '秋月はリールのみ。1本だけ要るのでマルツ推奨'),
+     'Akizuki has reels only. Only one is needed, so Marutsu is recommended'),
 
-    ('コンデンサ', '100nF / 50V以上 X7R', '1608 (0603)', 5, 'C2-C5, C10',
-     ('0.1µF 100V X7R (114559)', AKI.format('114559')),
+    ('Capacitor', '100nF / 50V or more, X7R', '1608 (0603)', 5, 'C2-C5, C10',
+     ('0.1uF 100V X7R (114559)', AKI.format('114559')),
      ('CC0603KRX7R9BB104', MARU_Q.format('CC0603KRX7R9BB104')), N, N,
-     '★F特性(113374)は買わないこと。Y5V相当で-82%変動する'),
-    ('コンデンサ', '22pF / 50V C0G(NP0)', '1608 (0603)', 2, 'C7, C8 (水晶負荷)',
-     ('40個入 ¥100 (P-11626)', 'https://www.akizukidenshi.com/catalog/g/gP-11626/'),
+     '* Do not buy the F characteristic (113374). It is equivalent to Y5V and moves -82%'),
+    ('Capacitor', '22pF / 50V C0G(NP0)', '1608 (0603)', 2, 'C7, C8 (crystal load)',
+     ('pack of 40, Y100 (P-11626)', 'https://www.akizukidenshi.com/catalog/g/gP-11626/'),
      ('CC0603JRNPO9BN220', MARU_Q.format('CC0603JRNPO9BN220')), N, N,
-     '調査時点で秋月は在庫切れ表示'),
-    ('コンデンサ', '10µF / 25V以上', '1608 (0603)', 3, 'C6, C11, C13 (Q2ゲート遅延)',
+     'Shown as out of stock at Akizuki when this was researched'),
+    ('Capacitor', '10uF / 25V or more', '1608 (0603)', 3, 'C6, C11, C13 (Q2 gate delay)',
      ('35V (113161) / 16V (117202)', AKI.format('113161')),
      ('GRM188R61E106KA73D', MARU_Q.format('GRM188R61E106KA73D')),
      ('GRM188R61E106KA73D',
       'https://www.mouser.com/ProductDetail/Murata-Electronics/GRM188R61E106KA73D?qs=5aG0NVq1C4z8ebxPkQZf9A%3D%3D'),
      ('GRM188R61E106KA73D',
       'https://www.digikey.com/en/products/detail/murata-electronics/GRM188R61E106KA73D/9867922'),
-     'C13はロードダンプ時に約13Vかかるため25V以上必須。3点とも25V/35V品で統一が楽'),
+     'C13 sees about 13V during a load dump, so 25V or more is mandatory. '
+     'Easiest to use the same 25V/35V part for all three'),
 
-    ('ダイオード', 'B5819W (40V/1A ショットキー)', 'SOD-123', 2, 'D1, D3',
-     ('取扱いなし', None),
+    ('Diode', 'B5819W (40V/1A Schottky)', 'SOD-123', 2, 'D1, D3',
+     ('not carried', None),
      ('1N5819HW-7-F', MARU_Q.format('1N5819HW-7-F')),
      ('1N5819HW-7-F',
       'https://www.mouser.com/ProductDetail/Diodes-Incorporated/1N5819HW-7-F?qs=NQ47qNm99eDyWTEd07miYA%3D%3D'),
      ('1N5819HW-7-F',
       'https://www.digikey.com/product-detail/en/1N5819HW-7-F/1N5819HW-FDICT-ND/815283'),
-     '★秋月のSS14はSMAパッケージで載らない'),
-    ('ダイオード', 'SMAJ16A (TVS 400W)', 'SMA (DO-214AC)', 1, 'D2',
-     ('取扱いなし', None),
+     '* Akizuki\'s SS14 is an SMA package and will not fit'),
+    ('Diode', 'SMAJ16A (TVS 400W)', 'SMA (DO-214AC)', 1, 'D2',
+     ('not carried', None),
      ('Littelfuse SMAJ16A', 'https://www.marutsu.co.jp/pc/i/2079887/'),
      ('SMAJ16A', 'https://www.mouser.com/'),
      ('Littelfuse SMAJ16A',
       'https://www.digikey.com/en/products/detail/littelfuse-inc/SMAJ16A/762278'),
      ''),
 # D4 (3.3V zener, ADC clamp) left the BOM in v2 with the IG sense circuit.
-    ('LED', 'LP812-010(T) 緑 サイドビュー', '2.8×1.2mm', 1, 'D6',
-     ('10個入 ¥100 (116854)', AKI.format('116854')),
-     ('取扱いなし', None), N, N,
-     '★秋月でしか買えない'),
-    ('回路保護', 'PPTC 1.1A hold 16V', '1206', 1, 'F1',
-     ('取扱いなし', None),
+    ('LED', 'LP812-010(T) green, side view', '2.8x1.2mm', 1, 'D6',
+     ('pack of 10, Y100 (116854)', AKI.format('116854')),
+     ('not carried', None), N, N,
+     '* Only available from Akizuki'),
+    ('Circuit protection', 'PPTC 1.1A hold 16V', '1206', 1, 'F1',
+     ('not carried', None),
      ('1206L110/16WR', MARU_Q.format('1206L110')),
      ('1206L110/16WR', 'https://www.mouser.com/'),
      ('1206L110/16WR',
       'https://www.digikey.com/en/products/detail/littelfuse-inc/1206L110-16WR/3997167'),
-     '★6V品(SLYR)・8V品(THYR)と間違えないこと'),
-    ('トランジスタ', 'MMBT3904 (NPN)', 'SOT-23', 1, 'Q1',
-     ('20個入 ¥100 (105969)', AKI.format('105969')),
+     '* Do not confuse it with the 6V (SLYR) or 8V (THYR) parts'),
+    ('Transistor', 'MMBT3904 (NPN)', 'SOT-23', 1, 'Q1',
+     ('pack of 20, Y100 (105969)', AKI.format('105969')),
      ('MMBT3904', MARU_Q.format('MMBT3904')),
      ('onsemi MMBT3904',
       'https://www.mouser.com/ProductDetail/onsemi/MMBT3904?qs=UMEuL5FsraCg3xKjS4uBJQ%3D%3D'),
      ('onsemi MMBT3904',
       'https://www.digikey.com/en/products/detail/onsemi/MMBT3904/458868'),
      ''),
-    ('MOSFET', 'ZXMP6A17E6Q (Pch -60V)', 'SOT-23-6', 1, 'Q2 (高側SW)',
-     ('取扱いなし', None),
+    ('MOSFET', 'ZXMP6A17E6Q (P-ch -60V)', 'SOT-23-6', 1, 'Q2 (high-side switch)',
+     ('not carried', None),
      ('ZXMP6A17E6QTA', MARU_Q.format('ZXMP6A17E6QTA')),
      ('ZXMP6A17E6QTA',
       'https://www.mouser.com/ProductDetail/Diodes-Incorporated/ZXMP6A17E6QTA?qs=JtunSoW0QGE6mLYIV79weA%3D%3D'),
@@ -94,93 +95,106 @@ ROWS = [
       'https://www.digikey.com/en/products/detail/diodes-incorporated/ZXMP6A17E6QTA/4810942'),
      ''),
 
-    ('電源IC', 'AP63205WU-7 (5V固定 2A バック)', 'TSOT-26', 1, 'U4 (v4)',
-     ('取扱いなし', None),
+    ('Power IC', 'AP63205WU-7 (fixed 5V, 2A buck)', 'TSOT-26', 1, 'U4 (v4)',
+     ('not carried', None),
      ('AP63205WU-7', MARU_Q.format('AP63205WU-7')),
      ('AP63205WU-7',
       'https://www.mouser.com/ProductDetail/Diodes-Incorporated/AP63205WU-7?qs=u16ybLDytRZtkj8PzdWCOw%3D%3D'),
      ('AP63205WU-7',
       'https://www.digikey.com/en/products/detail/diodes-incorporated/AP63205WU-7/9858424'),
-     'v4でM78AR05を置換。最低入力3.8Vでクランキング問題も解消'),
-    ('インダクタ', '6.8µH 4030 飽和≥1.5A', '4×4×3mm', 1, 'L1 (v4)',
-     ('取扱いなし', None),
+     'Replaced the M78AR05 in v4. Its 3.8V minimum input also resolved the cranking issue'),
+    ('Inductor', '6.8uH 4030, saturation >=1.5A', '4x4x3mm', 1, 'L1 (v4)',
+     ('not carried', None),
      ('ASPI-4030S-6R8M', MARU_Q.format('ASPI-4030S-6R8M')),
      ('ASPI-4030S-6R8M-T',
       'https://www.mouser.com/ProductDetail/ABRACON/ASPI-4030S-6R8M-T?qs=BLmuIjeT3qE8jeo8oUT4Iw%3D%3D'),
-     N, 'シールド品推奨。基板裏面の最背部品(3mm)'),
-    ('コンデンサ', '10µF / 50V X7R', '3216 (1206)', 1, 'C14 バック入力 (v4)',
-     ('取扱いなし', None),
-     ('GRM31CR71H106KA12', MARU_Q.format('GRM31CR71H106KA12')), N, N,
-     '★入力はクランプ26Vを直接見るため50V必須。25V品不可'),
-    ('コンデンサ', '22µF / 16V', '2012 (0805)', 1, 'C15 バック出力 (v4)',
-     ('取扱いなし', None),
-     ('GRM21BR61C226ME44', MARU_Q.format('GRM21BR61C226ME44')), N, N, ''),
-    ('コンデンサ', '100nF / 50V X7R', '2012 (0805)', 1, 'C16 ブートストラップ (v4)',
-     ('取扱いなし', None),
-     ('0805 100nF 50V', MARU_Q.format('GRM21BR71H104KA01')), N, N,
-     '1608でなく2012なのは「1608全数表面」規則のため（裏面実装）'),
+     N, 'A shielded part is recommended. The tallest part on the back of the board (3mm)'),
+    ('Capacitor', '10uF / 50V X7R', '3216 (1206)', 1, 'C14 buck input (v4)',
+     ('not carried', None),
+     ('GRM31CR71H106KA12', MARU_Q.format('GRM31CR71H106KA12')),
+     ('810-CNA5L171H106K160',
+      'https://www.mouser.jp/en/ProductDetail/TDK/CNA5L1X7R1H106K160AE?qs=Y0Uzf4wQF3kvAkifwkQiJA%3D%3D'),
+     N,
+     '* The input sees the 26V clamp directly, so 50V is mandatory. A 25V part will not do'),
+    ('Capacitor', '22uF / 16V', '2012 (0805)', 1, 'C15 buck output (v4)',
+     ('not carried', None),
+     ('GRM21BR61C226ME44', MARU_Q.format('GRM21BR61C226ME44')),
+     ('81-GXT21BR61C226ME3L',
+      'https://www.mouser.jp/en/ProductDetail/Murata/GXT21BR61C226ME13L?qs=d0WKAl%252BL4Kb74FO4906dbA%3D%3D'),
+     N, ''),
+    ('Capacitor', '100nF / 50V X7R', '2012 (0805)', 1, 'C16 bootstrap (v4)',
+     ('not carried', None),
+     ('0805 100nF 50V', MARU_Q.format('GRM21BR71H104KA01')),
+     ('581-KAF21BR71H104KM',
+      'https://www.mouser.jp/en/ProductDetail/KYOCERA-AVX/KAF21BR71H104KM?qs=Jm2GQyTW%2FbhmrEcuwq3xrw%3D%3D'),
+     N,
+     '2012 rather than 1608 to keep the "all 1608 on the front" rule (this one is on the back)'),
     ('IC', 'MCP25625T-E/SS (CAN)', 'SSOP-28 0.65mm', 1, 'U2',
-     ('¥400 (112663)', AKI.format('112663')),
+     ('Y400 (112663)', AKI.format('112663')),
      ('MCP25625', MARU_Q.format('MCP25625')),
      ('MCP25625T-E/SS',
       'https://www.mouser.com/ProductDetail/Microchip-Technology/MCP25625T-E-SS?qs=YlpJWyuQ3PP8xO0AA8P3ZQ%3D%3D'),
      ('MCP25625T-E/SS',
       'https://www.digikey.com/en/products/detail/microchip-technology/MCP25625T-E-SS/4860100'),
-     '★秋月が最安（DigiKeyは$3.38）。手はんだ最難関'),
-    ('マイコン', 'Raspberry Pi Pico 2', '2×20 2.54mm', 1, 'U3',
-     ('Pico 2 H ヘッダ実装済 (130982)', AKI.format('130982')),
+     '* Cheapest at Akizuki (DigiKey is $3.38). The hardest part to hand solder'),
+    ('MCU', 'Raspberry Pi Pico 2', '2x20 2.54mm', 1, 'U3',
+     ('Pico 2 H, headers fitted (130982)', AKI.format('130982')),
      ('Raspberry Pi Pico 2', MARU_Q.format('Raspberry+Pi+Pico+2')), N, N,
-     'ヘッダ無しは (129604)。H版なら自分でヘッダを付けずに済む'),
+     'Without headers it is (129604). The H version saves fitting the headers yourself'),
 
-    ('コネクタ', 'TE 1-967658-1 (MQS 8極 RA)', 'THT ライトアングル', 1, 'J1 (車両I/F)',
-     ('取扱いなし', None),
-     ('1-967658-1', MARU_Q.format('1-967658-1')), N,
+    ('Connector', 'TE 1-967658-1 (MQS 8 way RA)', 'THT right angle', 1, 'J1 (vehicle I/F)',
+     ('not carried', None),
+     ('1-967658-1', MARU_Q.format('1-967658-1')),
+     ('1-967658-1',
+      'https://www.mouser.jp/en/ProductDetail/TE-Connectivity-AMP/1-967658-1?qs=6Z%252BHCgJKjncTVf7nPH%2FL8g%3D%3D'),
      ('DigiKey Marketplace',
       'https://www.digikey.be/en/products/detail/te-connectivity-amp-connectors/1-967658-1/10478177'),
-     '★最も入手しにくい。DigiKeyは第三者出品。発注前に在庫確認'),
-    ('コネクタ', 'DM3AT-SF-PEJM5 (microSD)', 'SMD ライトアングル', 1, 'J2',
-     ('取扱いなし', None),
-     ('ヒロセ DM3AT-SF-PEJM5', 'https://www.marutsu.co.jp/pc/i/2571574/'),
+     '* The hardest part to obtain. DigiKey sells it through a third party. Confirm stock before ordering'),
+    ('Connector', 'DM3AT-SF-PEJM5 (microSD)', 'SMD right angle', 1, 'J2',
+     ('not carried', None),
+     ('Hirose DM3AT-SF-PEJM5', 'https://www.marutsu.co.jp/pc/i/2571574/'),
      ('DM3AT-SF-PEJM5',
       'https://www.mouser.com/ProductDetail/Hirose-Connector/DM3AT-SF-PEJM5?qs=LZSZKJVF+2WTDKp+R7IYAQ%3D%3D'),
      ('DM3AT-SF-PEJM5',
       'https://www.digikey.com/en/products/detail/hirose-electric-co-ltd/DM3AT-SF-PEJM5/2533565'),
      ''),
-    ('モジュール', 'GT-502MGG-N (GPS)', '先バラ5線', 1, 'J3',
-     ('¥3,180 (117980)', AKI.format('117980')),
+    ('Module', 'GT-502MGG-N (GPS)', '5 bare wires', 1, 'J3',
+     ('Y3,180 (117980)', AKI.format('117980')),
      ('GT-502MGG-N', MARU_Q.format('GT-502MGG-N')), N,
      ('YIC GT-502MGG-N',
       'https://www.digikey.jp/ja/products/detail/yic/GT-502MGG-N/16499054'),
-     '秋月が最安'),
-    ('水晶', '16MHz HC-49/S CL=16〜20pF', 'THT', 1, 'Y1',
+     'Cheapest at Akizuki'),
+    ('Crystal', '16MHz HC-49/S CL=16-20pF', 'THT', 1, 'Y1',
      ('CL=20pF (108671)', AKI.format('108671')),
      ('16MHz HC-49', MARU_Q.format('16MHz+HC-49')), N, N,
-     '★CL=12pFや32pFの品は不可（C7/C8が22pFのため）'),
+     '* CL=12pF and CL=32pF parts will not do (because C7/C8 are 22pF)'),
 
-    ('【BOM外】', '1×20 メスピンソケット 2.54mm', 'THT', 2, 'U3 のソケット',
-     ('分割ロングピンソケット 1×42 (105779)', AKI.format('105779')),
+    ('[not in BOM]', '1x20 female pin socket, 2.54mm', 'THT', 2, 'the socket for U3',
+     ('breakable long pin socket 1x42 (105779)', AKI.format('105779')),
      N, N, N,
-     'Pico をソケット実装する設計のため基板側に必要。1×42を切って使う'),
+     'The design socket-mounts the Pico, so the board needs these. Cut down the 1x42 strip'),
 ]
 
-HDR = ['分類', '型番 / 値', 'パッケージ', '数量', '使用箇所',
-       '秋月電子', 'マルツ', 'Mouser', 'DigiKey', '備考', '発注済']
+HDR = ['Category', 'Part / value', 'Package', 'Qty', 'Used in',
+       'Akizuki Denshi', 'Marutsu', 'Mouser', 'DigiKey', 'Note', 'Ordered']
 
 wb = Workbook()
 
-# ------------------------------------------------------------------ 調達先一覧
+# ------------------------------------------------------------------- sourcing
 ws = wb.active
-ws.title = '購入先一覧'
+ws.title = 'Sourcing'
 
-TITLE = 'MotoRecoPico 部品購入先一覧'
+TITLE = 'MotoRecoPico parts sourcing list'
 ws['A1'] = TITLE
 ws['A1'].font = Font(name=FONT, size=14, bold=True)
-ws['A2'] = ('全41点（v4: 5V電源をAP63205化）を値でまとめて25品目＋ソケット。'
-            'リンクは実在を確認したページのみ。'
-            '空欄＝そのベンダーで確認できなかった（無いとは限らない）。')
+ws['A2'] = ('All 41 parts (v4: the 5V supply moved to the AP63205), grouped by value into '
+            '25 line items plus the sockets. Links are only given for pages whose existence '
+            'was confirmed. A blank cell means it could not be confirmed at that vendor '
+            '(not that it does not exist).')
 ws['A2'].font = Font(name=FONT, size=9, italic=True, color='555555')
-ws['A3'] = ('マルツは DigiKey の国内唯一の正規代理店。DigiKey 全品を1個から同価格で買え、'
-            '送料は全国一律 ¥240（¥3,000以上で無料）。秋月＋マルツの2社で全部揃う。')
+ws['A3'] = ('Marutsu is the only authorized DigiKey distributor in Japan: every DigiKey line item, '
+            'one at a time, at the same price, with flat Y240 shipping nationwide (free above '
+            'Y3,000). Akizuki plus Marutsu covers the whole list.')
 ws['A3'].font = Font(name=FONT, size=9, bold=True, color='1F4E79')
 
 HDR_ROW = 5
@@ -226,7 +240,7 @@ for row in ROWS:
         else:
             cell.font = GREY
     nc = ws.cell(row=r, column=10, value=note)
-    nc.font = WARN if note.startswith('★') else PLAIN
+    nc.font = WARN if note.startswith('*') else PLAIN
     nc.border = border
     nc.alignment = Alignment(vertical='center', wrap_text=True)
     oc = ws.cell(row=r, column=11)
@@ -239,77 +253,86 @@ for row in ROWS:
     r += 1
 
 LAST = r - 1
-tot = ws.cell(row=r, column=3, value='合計')
+tot = ws.cell(row=r, column=3, value='Total')
 tot.font = Font(name=FONT, size=10, bold=True)
 tot.alignment = Alignment(horizontal='right')
 tc = ws.cell(row=r, column=4, value=f'=SUM(D{HDR_ROW+1}:D{LAST})')
 tc.font = Font(name=FONT, size=10, bold=True)
 tc.border = border
 tc.alignment = Alignment(horizontal='center')
-ws.cell(row=r, column=5, value='点（BOM 38点 + ソケット2本）').font = Font(
+ws.cell(row=r, column=5, value='pieces (38 in the BOM + 2 socket strips)').font = Font(
     name=FONT, size=9, italic=True, color='555555')
 
 for col, w in zip('ABCDEFGHIJK',
-                  [11, 30, 20, 6, 20, 30, 26, 22, 26, 46, 8]):
+                  [18, 32, 20, 6, 24, 32, 26, 22, 26, 60, 9]):
     ws.column_dimensions[col].width = w
 ws.freeze_panes = f'A{HDR_ROW+1}'
 ws.auto_filter.ref = f'A{HDR_ROW}:K{LAST}'
 ws.row_dimensions[HDR_ROW].height = 22
 
-# ------------------------------------------------------------------- 注意事項
-ws2 = wb.create_sheet('注意事項')
-ws2['A1'] = '発注・実装時の注意'
+# ------------------------------------------------------------------- cautions
+ws2 = wb.create_sheet('Cautions')
+ws2['A1'] = 'Cautions when ordering and assembling'
 ws2['A1'].font = Font(name=FONT, size=14, bold=True)
 
+DO_NOT_BUY = 'Do not buy'
+
 NOTES = [
-    ('買ってはいけない', 'D1/D3 に SS14',
-     '秋月のSS14(113240)はSMA(DO-214AC)。基板のランドはSOD-123なので物理的に載らない。'
-     '1N5819HW-7-F（40V/1A・SOD-123）を買うこと。'),
-    ('買ってはいけない', 'C2-C5/C10/C12 に「F特性」の0.1µF',
-     '秋月の0.1µF 50V F特性(113374)はJISのF特性＝Y5V相当で、温度により+22%/-82%変動する。'
-     'デカップリングには使えない。X7R か X8L を選ぶこと。'),
-    ('買ってはいけない', 'F1 に 6V / 8V 品',
-     '1206L110系には6V(1206L110SLYR)と8V(1206L110THYR)もある。12V車載では使えない。'
-     '1206L110/16WR を指定すること。秋月のPICOSMDC110S-2も6V。'),
-    ('仕様の判断', 'F1 の耐圧16Vは許容済み',
-     '1206で1.1A holdのPPTCは16Vが上限。しかもF1はD2(TVS)より前段(J1.8→F1→D1→D2)にあり、'
-     '車両側サージをクランプされずに直接受ける唯一の部品。24V/30V品は1812などサイズアップが'
-     '必要で基板変更を伴うため、ユーザー判断で16Vのまま進める（2026-07-31）。'),
-    ('v3変更', 'C13（10µF/25V）と R15（10k）が増えた',
-     'v3（2026-08-09）でIGN OFF遅延を追加。C13はQ2のゲート–ソース間で25V以上必須、'
-     'R15はQ1ベース→GP28のIG検知用。10µFは3点、10kΩは7点になった。'),
-    ('v2変更', 'R5・D4・C12 は購入不要',
-     'v2（2026-08-08）でIG電圧センシングを廃止し、R5（10k 1点）、D4（3.3Vツェナー）、'
-     'C12（100nF 1点）を削除した。10kΩは6点、100nFは5点に減っている。'),
-    ('仕様の判断', 'Y1 の負荷容量',
-     'C7/C8が22pFなので負荷容量CL=16〜20pFの水晶を選ぶこと。秋月の108671はCL=20pFで適合。'
-     'CL=12pFや32pFの品は不可。'),
-    ('入手性', 'J1（MQSコネクタ）が最難関',
-     'DigiKeyではMarketplace（第三者出品）扱いで在庫・納期が通常在庫品と異なる。'
-     'マルツ・RSコンポーネンツでも型番検索する価値がある。代替の効かない部品なので'
-     '発注前に必ず在庫を確認すること。'),
-    ('入手性', '秋月でしか買えないもの',
-     'D6（LP812-010(T) サイドビューLED）はKODENSHIの国内向け品で海外流通が無い。'
-     'J3（GT-502MGG-N）はDigiKeyにもあるが秋月が最安（¥3,180）。'),
-    ('入手性', '秋月の1608抵抗は小分けが限られる',
-     '10kΩ(130355)と100kΩ(130357)は100個入 ¥150 があるが、22kΩ・120Ω・1kΩは'
-     '5000個リール(¥980)しかない。この3点はマルツで単品購入する方が現実的。'),
-    ('手はんだ', 'U2 MCP25625（SSOP-28 0.65mmピッチ）',
-     '最難関。フラックスと引きはんだを推奨。'),
-    ('手はんだ', 'J2 microSDコネクタ',
-     '端子が細かく、シェル脚は熱容量が大きい。'),
-    ('手はんだ', 'D6 サイドビューLED',
-     '基板端（y=61）に置くため位置決めがシビア。'),
-    ('v2変更', 'GNDパッドはサーマル接続になった',
-     'v2で全ゾーンをサーマル接続（スポーク0.4mm/ギャップ0.3mm）に変更。'
-     'v1のベタ直結（GNDピンだけ異様に熱を食う）は解消済みで、通常のこて先温度で作業できる。'),
-    ('BOM外', 'Picoのソケットが要る',
-     'Picoをソケット実装する設計なので、基板側に1×20メスピンソケットが2本必要。'
-     '分割ロングピンソケット1×42(105779)を切って使う。Pico側のオスヘッダは'
-     'Pico 2 H(130982)を買えば実装済みで不要。'),
+    (DO_NOT_BUY, 'SS14 for D1/D3',
+     "Akizuki's SS14 (113240) is SMA (DO-214AC). The board land is SOD-123, so it physically "
+     'will not fit. Buy the 1N5819HW-7-F (40V/1A, SOD-123).'),
+    (DO_NOT_BUY, 'An "F characteristic" 0.1uF for C2-C5/C10/C12',
+     "Akizuki's 0.1uF 50V F characteristic (113374) is the JIS F characteristic, equivalent to "
+     'Y5V, and moves +22%/-82% over temperature. It cannot be used for decoupling. '
+     'Choose X7R or X8L.'),
+    (DO_NOT_BUY, 'A 6V or 8V part for F1',
+     'The 1206L110 family also comes in 6V (1206L110SLYR) and 8V (1206L110THYR). Those cannot '
+     "be used in a 12V vehicle. Specify the 1206L110/16WR. Akizuki's PICOSMDC110S-2 is 6V too."),
+    ('Specification call', "F1's 16V rating is accepted",
+     'For a 1206 PPTC with 1.1A hold, 16V is the ceiling. On top of that F1 is upstream of D2 '
+     '(the TVS) (J1.8 -> F1 -> D1 -> D2), making it the only part that takes vehicle-side '
+     'surges without them being clamped. A 24V/30V part would need a larger size such as 1812 '
+     'and therefore a board change, so by the user\'s decision it stays at 16V (2026-07-31).'),
+    ('v3 change', 'C13 (10uF/25V) and R15 (10k) were added',
+     'v3 (2026-08-09) added the IGN OFF delay. C13 goes across Q2\'s gate and source and must be '
+     'rated 25V or more; R15 is for IG sensing from Q1\'s base to GP28. That makes three 10uF '
+     'parts and seven 10kOhm parts.'),
+    ('v2 change', 'R5, D4 and C12 need not be bought',
+     'v2 (2026-08-08) retired IG voltage sensing and removed R5 (one 10k), D4 (a 3.3V zener) '
+     'and C12 (one 100nF). That brings 10kOhm down to six and 100nF down to five.'),
+    ('Specification call', "Y1's load capacitance",
+     'C7/C8 are 22pF, so choose a crystal with a load capacitance CL of 16-20pF. Akizuki\'s '
+     '108671 is CL=20pF and fits. CL=12pF and CL=32pF parts will not do.'),
+    ('Availability', 'J1 (the MQS connector) is the hardest',
+     'DigiKey handles it through the Marketplace (a third-party seller), so stock and lead time '
+     'differ from normal stock items. It is worth searching the part number at Marutsu and RS '
+     'Components too. There is no substitute for this part, so always confirm stock before '
+     'ordering.'),
+    ('Availability', 'Parts only available from Akizuki',
+     'D6 (the LP812-010(T) side-view LED) is a KODENSHI part for the Japanese market with no '
+     'overseas distribution. J3 (the GT-502MGG-N) is on DigiKey too, but Akizuki is cheapest '
+     '(Y3,180).'),
+    ('Availability', "Akizuki's 1608 resistors come in few small packs",
+     '10kOhm (130355) and 100kOhm (130357) come as packs of 100 for Y150, but 22kOhm, 120Ohm '
+     'and 1kOhm only come as reels of 5000 (Y980). For those three it is more realistic to buy '
+     'singles from Marutsu.'),
+    ('Hand soldering', 'U2 MCP25625 (SSOP-28, 0.65mm pitch)',
+     'The hardest. Flux and drag soldering are recommended.'),
+    ('Hand soldering', 'J2 microSD connector',
+     'Fine terminals, and the shell legs have a large thermal mass.'),
+    ('Hand soldering', 'D6 side-view LED',
+     'Positioning is critical because it sits on the board edge (y=61).'),
+    ('v2 change', 'GND pads now use thermal relief',
+     'v2 changed every zone to thermal relief (spoke 0.4mm / gap 0.3mm). The direct pour '
+     'connection of v1 (where the GND pins alone sank an absurd amount of heat) is resolved, '
+     'and a normal iron tip temperature works.'),
+    ('Not in the BOM', 'The Pico needs sockets',
+     'The design socket-mounts the Pico, so the board needs two 1x20 female pin sockets. Cut '
+     'down a breakable long pin socket 1x42 (105779). Male headers on the Pico side are not '
+     'needed if you buy the Pico 2 H (130982), which has them fitted.'),
 ]
 
-H2 = ['区分', '項目', '内容']
+H2 = ['Category', 'Item', 'Details']
 for c, h in enumerate(H2, start=1):
     cell = ws2.cell(row=3, column=c, value=h)
     cell.font = Font(name=FONT, size=10, bold=True, color='FFFFFF')
@@ -317,13 +340,12 @@ for c, h in enumerate(H2, start=1):
     cell.alignment = Alignment(horizontal='center', vertical='center')
     cell.border = border
 
-CAT_FILL = {'買ってはいけない': 'FFC7CE', '仕様の judgement': None}
 r = 4
 for cat, title, body in NOTES:
     a = ws2.cell(row=r, column=1, value=cat)
     a.font = Font(name=FONT, size=9, bold=True,
-                  color='C00000' if cat == '買ってはいけない' else '1F4E79')
-    if cat == '買ってはいけない':
+                  color='C00000' if cat == DO_NOT_BUY else '1F4E79')
+    if cat == DO_NOT_BUY:
         a.fill = PatternFill('solid', fgColor='FFC7CE')
     b = ws2.cell(row=r, column=2, value=title)
     b.font = Font(name=FONT, size=9, bold=True)
@@ -338,14 +360,14 @@ for cat, title, body in NOTES:
     ws2.row_dimensions[r].height = 46
     r += 1
 
-for col, w in zip('ABC', [18, 34, 96]):
+for col, w in zip('ABC', [20, 40, 96]):
     ws2.column_dimensions[col].width = w
 ws2.freeze_panes = 'A4'
 
-# openpyxl writes formulas with no cached value. LibreOffice CAN fill them in, but its
-# round-trip substitutes Noto Sans JP for Arial in the Japanese header cells, so the
-# recalculated copy is only used to VERIFY the formula (checked: D29 = 40, 0 errors) and
-# this flag makes the reader compute it on open instead.
+# openpyxl writes formulas with no cached value, so a reader that does not calculate would
+# show the total as blank. check_xlsx.py verifies the formula against a LibreOffice-
+# recalculated copy (checked: D29 = 40, 0 errors), and this flag makes the reader compute
+# it on open instead of relying on a cached value.
 wb.calculation.fullCalcOnLoad = True
 
 os.makedirs(os.path.dirname(OUT), exist_ok=True)

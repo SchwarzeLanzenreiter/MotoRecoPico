@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""MotoReco の .dat ログを CANable v2.0 経由で CAN バスへ再送信する。
+"""Replay a MotoReco .dat log onto a CAN bus through a CANable v2.0.
 
-.dat は 16 バイト固定長レコードの連続 (ヘッダ無し・リトルエンディアン):
+A .dat file is a sequence of fixed-length 16-byte records (no header, little-endian):
     uint32 second / uint16 mirisecond / uint16 CAN ID (11bit) / uint8[8] data
-DLC は記録されていないので常に 8 バイトで送る。
-0x7FF / 0x7FE は GPS を載せた仮想フレームなので、既定では送らない (--include-gps で送る)。
+The DLC is not recorded, so every frame is sent as 8 bytes.
+0x7FF / 0x7FE are virtual frames carrying GPS, so they are not sent by default
+(use --include-gps to send them).
 
-CANable v2.0 のファームウェアに合わせてインタフェースを選ぶ:
-    slcan (出荷時)      : --interface slcan  --channel COM5
+Pick the interface to match the firmware on the CANable v2.0:
+    slcan (as shipped)  : --interface slcan  --channel COM5
     candleLight (gs_usb): --interface gs_usb --channel 0
 """
 
@@ -21,11 +22,11 @@ GPS_IDS = (0x7FF, 0x7FE)
 
 
 def read_records(path):
-    """(経過秒 float, CAN ID, data bytes) を順に返す。"""
+    """Yield (elapsed seconds as float, CAN ID, data bytes) in order."""
     with open(path, "rb") as f:
         raw = f.read()
     if len(raw) % RECORD.size:
-        print(f"警告: ファイル末尾の {len(raw) % RECORD.size} バイトは不完全なレコードなので無視します",
+        print(f"warning: the last {len(raw) % RECORD.size} bytes are an incomplete record, ignoring them",
               file=sys.stderr)
     for second, msec, can_id, data in RECORD.iter_unpack(raw[: len(raw) - len(raw) % RECORD.size]):
         yield second + msec / 1000.0, can_id & 0x7FF, data
@@ -39,40 +40,43 @@ def open_bus(args):
     try:
         import can
     except ImportError:
-        sys.exit("python-can が見つかりません: pip install -r requirements.txt")
+        sys.exit("python-can not found: pip install -r requirements.txt")
     kwargs = {"interface": args.interface, "channel": args.channel, "bitrate": args.bitrate}
     if args.interface == "slcan":
-        kwargs["tty_baudrate"] = 115200  # USB CDC なので実際の値は無関係
+        kwargs["tty_baudrate"] = 115200  # USB CDC, so the actual value is irrelevant
     try:
         return can, can.Bus(**kwargs)
-    except Exception as e:  # noqa: BLE001 - 接続失敗の理由をそのまま見せる
-        sys.exit(f"CAN インタフェースを開けません ({args.interface} {args.channel}): {e}")
+    except Exception as e:  # noqa: BLE001 - show the reason the connection failed as-is
+        sys.exit(f"cannot open the CAN interface ({args.interface} {args.channel}): {e}")
 
 
 def main():
-    p = argparse.ArgumentParser(description="MotoReco の .dat を CANable v2.0 で CAN バスへ再送信する")
-    p.add_argument("datfile", help="再送信する .dat ファイル")
+    p = argparse.ArgumentParser(description="Replay a MotoReco .dat onto a CAN bus through a CANable v2.0")
+    p.add_argument("datfile", help="the .dat file to replay")
     p.add_argument("-i", "--interface", default="slcan",
-                   help="python-can のインタフェース名 (slcan / gs_usb / virtual など。既定: slcan)")
+                   help="python-can interface name (slcan / gs_usb / virtual etc. default: slcan)")
     p.add_argument("-c", "--channel", default=None,
-                   help="slcan なら COM ポート (例: COM5)、gs_usb ならデバイス番号 (例: 0)")
-    p.add_argument("-b", "--bitrate", type=int, default=500000, help="CAN ビットレート (既定: 500000)")
+                   help="the COM port for slcan (e.g. COM5), or the device number for gs_usb (e.g. 0)")
+    p.add_argument("-b", "--bitrate", type=int, default=500000, help="CAN bitrate (default: 500000)")
     p.add_argument("-s", "--speed", type=float, default=1.0,
-                   help="再生速度倍率 (2.0 で 2 倍速。0 で待たずに最速送信。既定: 1.0)")
-    p.add_argument("--start", type=float, default=0.0, help="この経過秒から送信を始める")
-    p.add_argument("--end", type=float, default=None, help="この経過秒で送信を終える")
-    p.add_argument("--loop", action="store_true", help="最後まで送ったら先頭から繰り返す")
-    p.add_argument("--include-gps", action="store_true", help="GPS 仮想フレーム 0x7FF/0x7FE も送信する")
-    p.add_argument("--only", type=parse_ids, default=None, help="送る ID を限定する (16進、カンマ区切り。例: 10c,130)")
-    p.add_argument("--exclude", type=parse_ids, default=set(), help="送らない ID (16進、カンマ区切り)")
-    p.add_argument("--dry-run", action="store_true", help="CAN に送らず内容を表示するだけ")
-    p.add_argument("-v", "--verbose", action="store_true", help="送信したフレームを 1 行ずつ表示する")
+                   help="playback speed multiplier (2.0 for double speed, 0 to send as fast as possible "
+                        "without waiting. default: 1.0)")
+    p.add_argument("--start", type=float, default=0.0, help="start sending from this elapsed time in seconds")
+    p.add_argument("--end", type=float, default=None, help="stop sending at this elapsed time in seconds")
+    p.add_argument("--loop", action="store_true", help="start over from the beginning after the last frame")
+    p.add_argument("--include-gps", action="store_true", help="also send the virtual GPS frames 0x7FF/0x7FE")
+    p.add_argument("--only", type=parse_ids, default=None,
+                   help="send only these IDs (hex, comma separated. e.g. 10c,130)")
+    p.add_argument("--exclude", type=parse_ids, default=set(), help="IDs not to send (hex, comma separated)")
+    p.add_argument("--dry-run", action="store_true", help="print the contents instead of sending to CAN")
+    p.add_argument("-v", "--verbose", action="store_true", help="print one line per frame sent")
     args = p.parse_args()
 
     if args.speed < 0:
-        p.error("--speed は 0 以上")
+        p.error("--speed must be 0 or more")
     if not args.dry_run and args.channel is None and args.interface in ("slcan", "gs_usb"):
-        p.error(f"--interface {args.interface} には --channel が必要 (例: {'COM5' if args.interface == 'slcan' else '0'})")
+        p.error(f"--interface {args.interface} needs --channel "
+                f"(e.g. {'COM5' if args.interface == 'slcan' else '0'})")
 
     def wanted(t, can_id):
         if t < args.start or (args.end is not None and t > args.end):
@@ -86,17 +90,17 @@ def main():
     try:
         frames = [r for r in read_records(args.datfile) if wanted(r[0], r[1])]
     except OSError as e:
-        sys.exit(f"{args.datfile} を読めません: {e}")
+        sys.exit(f"cannot read {args.datfile}: {e}")
     if not frames:
-        sys.exit("送信するフレームがありません (フィルタ条件を確認してください)")
-    print(f"{len(frames)} フレーム, {frames[0][0]:.3f}s - {frames[-1][0]:.3f}s "
-          f"({frames[-1][0] - frames[0][0]:.1f} 秒分)", file=sys.stderr)
+        sys.exit("there are no frames to send (check the filter options)")
+    print(f"{len(frames)} frames, {frames[0][0]:.3f}s - {frames[-1][0]:.3f}s "
+          f"({frames[-1][0] - frames[0][0]:.1f} seconds' worth)", file=sys.stderr)
 
     if args.dry_run:
         can, bus = None, None
     else:
         can, bus = open_bus(args)
-        print(f"{args.interface} {args.channel} @ {args.bitrate} bps に接続", file=sys.stderr)
+        print(f"connected to {args.interface} {args.channel} @ {args.bitrate} bps", file=sys.stderr)
 
     sent = errors = 0
     try:
@@ -118,18 +122,19 @@ def main():
                     except can.CanError as e:
                         errors += 1
                         if errors <= 10 or args.verbose:
-                            print(f"送信失敗 {t:.3f}s ID {can_id:03X}: {e}", file=sys.stderr)
+                            print(f"send failed at {t:.3f}s ID {can_id:03X}: {e}", file=sys.stderr)
             if not args.loop:
                 break
-            print("先頭に戻ります", file=sys.stderr)
+            print("starting over from the beginning", file=sys.stderr)
     except KeyboardInterrupt:
-        print("中断しました", file=sys.stderr)
+        print("interrupted", file=sys.stderr)
     finally:
         if bus is not None:
-            # slcan はチャンネルを閉じると CANable 内でまだ送っていないフレームを捨てるので、送り切るまで待つ
+            # closing an slcan channel makes the CANable drop frames it has not sent yet,
+            # so wait for it to finish
             time.sleep(0.5)
             bus.shutdown()
-            print(f"送信 {sent} / 失敗 {errors}", file=sys.stderr)
+            print(f"sent {sent} / failed {errors}", file=sys.stderr)
 
 
 if __name__ == "__main__":
