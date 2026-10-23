@@ -71,7 +71,7 @@ series.
 
 **`0x7FD`** (added for MotoNavi, not written by the Pi version) carries the absolute time of each
 fix, since the record time above only counts from the start of the log. One per fix, written when
-the fix's RMC sentence arrives and after any `0x7FF` that sentence produced, so it pairs with the
+the fix's GGA sentence arrives and after any `0x7FF` that sentence produced, so it pairs with the
 `0x7FF` at or just before it. It is written while standing still too, when `0x7FF` is skipped
 because the position has not changed:
 
@@ -81,7 +81,10 @@ because the position has not changed:
 | 6 | Fix kind in the high nibble (0 none, 1 2D, 2 3D, 3 DGPS/SBAS/RTK), satellites used in the low nibble (15 = 15 or more) |
 | 7 | HDOP × 10, rounded (255 = 25.5 or more, 0 = not reported) |
 
-Satellites and HDOP come from the most recent GGA, so they can be one fix older than the time.
+The time of day, satellites and HDOP all come from that GGA. GGA has no date, so the date is
+taken from the last RMC with a fix, and nothing is written before the first one. GGA rather than
+RMC because the receiver sends GSA and GSV between the two on every fifth fix, which made an
+RMC-timed frame arrive about 45 ms late on those fixes only.
 Readers that do not know `0x7FD` skip it like any other ID.
 
 > This format is a **contract shared with MotoRecoLogger (the Pi version) and MotoRecoViewer**;

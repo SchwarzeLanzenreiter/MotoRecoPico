@@ -88,9 +88,13 @@ typedef struct {
 							// anchoring each of them as .000 is what set the debug log's clock
 							// back by up to 0.9s inside every second
 
-	// everything below is diagnostics only. none of it reaches the .dat file, it exists to answer
-	// "why is there still no fix": a receiver that sees no satellites at all is a different
-	// problem from one that sees eight but cannot resolve them
+	int		has_gga_time;	// the last GGA carried a parseable time of day
+	int32_t	gga_tod_ms;		// ...as milliseconds since UTC midnight. GGA has no date, so this
+							// only becomes a full time through nmea_gga_unix_ms
+
+	// everything below exists to answer "why is there still no fix": a receiver that sees no
+	// satellites at all is a different problem from one that sees eight but cannot resolve them.
+	// quality, sats_used, hdop and fix_mode also reach the .dat file, in 0x7FD
 	int		quality;		// GGA field 6 as received: 0 none, 1 GPS, 2 DGPS, 4/5 RTK
 	int		sats_used;		// GGA field 7
 	double	hdop;			// GGA field 8. 0 when not reported
@@ -131,6 +135,16 @@ int64_t nmea_to_unix(int year, int month, int day, int hour, int min, int sec);
 // garbage almanac is not a few seconds out, it is decades out, and the damage lands in a file
 // name that cannot be taken back. the window is GPS_YEAR_MIN..GPS_YEAR_MAX
 int nmea_time_plausible(int64_t unix_time);
+
+// how far the last RMC may lag the GGA whose date it supplies. a receiver sending GGA first is one
+// fix interval behind, which is 10s at the slowest gps_rate
+#define NMEA_GGA_RMC_MAX_MS 60000
+
+// the UTC of the last GGA in unix milliseconds. GGA carries only the time of day, so the date comes
+// from the last RMC, and only from one that may also set the wall clock: status 'A', a plausible
+// date, and at most NMEA_GGA_RMC_MAX_MS before the GGA. UTC midnight between the two is accounted
+// for. returns 0, leaving *unix_ms alone, when there is no such answer
+int nmea_gga_unix_ms(const nmea_fix_t *fix, int64_t *unix_ms);
 
 #ifdef __cplusplus
 }

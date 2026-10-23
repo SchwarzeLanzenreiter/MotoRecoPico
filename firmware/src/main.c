@@ -1003,7 +1003,7 @@ static void queue_position(uint64_t now_us, uint64_t rx_us);
 static void handle_gps_sentence(const char *sentence, uint64_t now_us, uint64_t rx_us)
 {
 	struct CANData rec;
-	bool time_frame = false;
+	int64_t unix_ms;
 	int result = nmea_parse(&g_fix, sentence);
 
 	if (result == NMEA_RESULT_INVALID) {
@@ -1091,10 +1091,6 @@ static void handle_gps_sentence(const char *sentence, uint64_t now_us, uint64_t 
 			wallclock_sync(g_fix.unix_time, rx_us - frac_us);
 		}
 
-		// the same test the clock uses decides what reaches the file as 0x7FD, so a void RMC's
-		// guess at the date never does
-		time_frame = true;
-
 		if (!was_valid) {
 			logger_debug("gps time acquired");
 		}
@@ -1120,14 +1116,16 @@ static void handle_gps_sentence(const char *sentence, uint64_t now_us, uint64_t 
 
 	queue_position(now_us, rx_us);
 
+	// 0x7FD goes out with the GGA, not the RMC. every fifth fix this module sends GSA and GSV
+	// between the two, and a frame stamped at the RMC's arrival was 45ms late on exactly those
+	// fixes (20261023_182158.dat). stamping it at the GGA's arrival from the RMC would not do
+	// either: the CAN frames of those 45ms may be in the file by then, and the record would be
+	// pinned forward. GGA also carries the sats and HDOP, so they belong to the same fix.
+	//
 	// after the position, so a reader can pair it with the 0x7FF at or before it. it goes in
 	// whether or not that one did: a standing bike writes no position, and its time still moves.
-	//
-	// sats and HDOP are the last GGA's. RMC carries neither, so depending on the order the
-	// module sends them in they can be one fix old, which is close enough for a weight
-	if (time_frame) {
-		int64_t unix_ms = g_fix.unix_time * 1000 + g_fix.time_ms;
-
+	// the date is the last fixed RMC's, so nothing goes in before the first one
+	if (result == NMEA_RESULT_GGA && g_fix.quality > 0 && nmea_gga_unix_ms(&g_fix, &unix_ms)) {
 		record_gps_time(&rec, unix_ms,
 			record_fix_kind(g_fix.quality, g_fix.fix_mode, g_fix.has_altitude),
 			g_fix.sats_used, g_fix.hdop);

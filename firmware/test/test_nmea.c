@@ -366,6 +366,43 @@ static uint64_t le48(const unsigned char *u)
 	return v;
 }
 
+// GGA has a time of day and no date, so 0x7FD borrows the date of the last fixed RMC
+static void test_gga_time(void)
+{
+	nmea_fix_t fix;
+	int64_t ms = -1;
+
+	printf("GGA time for 0x7FD\n");
+
+	nmea_init(&fix);
+	check(nmea_parse(&fix, "$GNGGA,235959.900,3540.8724,N,13946.0261,E,1,08,0.9,45.4,M,36.0,M,,*7C")
+		== NMEA_RESULT_GGA, "GGA before any RMC parses");
+	check(fix.has_gga_time && fix.gga_tod_ms == 86399900, "GGA time of day in ms");
+	check(!nmea_gga_unix_ms(&fix, &ms) && ms == -1, "no date before the first fixed RMC");
+
+	nmea_parse(&fix, "$GNRMC,235959.900,A,3540.8724,N,13946.0261,E,000.0,000.0,311226,,,A*7A");
+	check(nmea_gga_unix_ms(&fix, &ms) && ms == 1798761600000LL - 100,
+		"same fix as the RMC: 2026-12-31 23:59:59.900");
+
+	// a module that sends GGA first dates it with the previous fix's RMC, across midnight here
+	nmea_parse(&fix, "$GNGGA,000000.000,3540.8724,N,13946.0261,E,1,08,0.9,45.4,M,36.0,M,,*74");
+	check(nmea_gga_unix_ms(&fix, &ms) && ms == 1798761600000LL,
+		"GGA past UTC midnight takes the next day");
+
+	nmea_parse(&fix, "$GNGGA,235959.800,3540.8724,N,13946.0261,E,1,08,0.9,45.4,M,36.0,M,,*7D");
+	check(!nmea_gga_unix_ms(&fix, &ms), "GGA older than the RMC is refused");
+
+	nmea_parse(&fix, "$GNGGA,000100.000,3540.8724,N,13946.0261,E,1,08,0.9,45.4,M,36.0,M,,*75");
+	check(!nmea_gga_unix_ms(&fix, &ms), "GGA a minute past the last RMC is refused");
+
+	nmea_parse(&fix, "$GNGGA,,3540.8724,N,13946.0261,E,1,08,0.9,45.4,M,36.0,M,,*6A");
+	check(!fix.has_gga_time && !nmea_gga_unix_ms(&fix, &ms), "GGA with no time");
+
+	nmea_parse(&fix, "$GNGGA,235959.900,3540.8724,N,13946.0261,E,1,08,0.9,45.4,M,36.0,M,,*7C");
+	nmea_parse(&fix, "$GNRMC,235959.900,V,,,,,,,311226,,,N*5E");
+	check(!nmea_gga_unix_ms(&fix, &ms), "a void RMC dates nothing");
+}
+
 static void test_record(void)
 {
 	struct CANData rec;
@@ -924,6 +961,7 @@ int motoreco_run_tests(void)
 	test_diagnostics();
 	test_gps_cmd();
 	test_reader();
+	test_gga_time();
 	test_record();
 	test_power();
 	test_settings();

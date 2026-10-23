@@ -213,6 +213,34 @@ int nmea_time_plausible(int64_t unix_time)
 	       unix_time < nmea_to_unix(GPS_YEAR_MAX + 1, 1, 1, 0, 0, 0);
 }
 
+int nmea_gga_unix_ms(const nmea_fix_t *fix, int64_t *unix_ms)
+{
+	const int64_t day_ms = 86400000LL;
+	int64_t rmc_ms, ahead;
+
+	if (!fix->has_gga_time || !fix->time_from_fix || !nmea_time_plausible(fix->unix_time)) {
+		return 0;
+	}
+
+	rmc_ms = fix->unix_time * 1000 + fix->time_ms;
+	ahead = (int64_t)fix->gga_tod_ms - rmc_ms % day_ms;
+
+	// a GGA at 00:00:00.0 dated by an RMC at 23:59:59.9 is 100ms ahead, not almost a day behind
+	if (ahead < -day_ms / 2) {
+		ahead += day_ms;
+	} else if (ahead > day_ms / 2) {
+		ahead -= day_ms;
+	}
+
+	// a GGA older than the RMC is stale, and one far newer means RMC stopped coming
+	if (ahead < 0 || ahead > NMEA_GGA_RMC_MAX_MS) {
+		return 0;
+	}
+
+	*unix_ms = rmc_ms + ahead;
+	return 1;
+}
+
 int64_t nmea_to_unix(int year, int month, int day, int hour, int min, int sec)
 {
 	return days_from_civil(year, month, day) * 86400LL + hour * 3600LL + min * 60LL + sec;
@@ -259,10 +287,12 @@ static int parse_date(const char *value, int *year, int *month, int *day)
 
 static int parse_gga(nmea_fix_t *fix, const char *sentence)
 {
-	char lat[16], ns[4], lon[16], ew[4], quality[8], alt[16], aux[16];
+	char timebuf[16], lat[16], ns[4], lon[16], ew[4], quality[8], alt[16], aux[16];
 	double latitude, longitude;
+	int hour, min, sec, ms;
 
-	if (nmea_field(sentence, 2, lat, sizeof(lat)) < 0 ||
+	if (nmea_field(sentence, 1, timebuf, sizeof(timebuf)) < 0 ||
+	    nmea_field(sentence, 2, lat, sizeof(lat)) < 0 ||
 	    nmea_field(sentence, 3, ns, sizeof(ns)) < 0 ||
 	    nmea_field(sentence, 4, lon, sizeof(lon)) < 0 ||
 	    nmea_field(sentence, 5, ew, sizeof(ew)) < 0 ||
@@ -271,6 +301,15 @@ static int parse_gga(nmea_fix_t *fix, const char *sentence)
 	}
 
 	fix->quality = (quality[0] == '\0') ? 0 : (int)strtol(quality, NULL, 10);
+
+	// the time of the fix this GGA describes. 0x7FD is stamped with this sentence's arrival rather
+	// than the RMC's, because a module that sends GSA and GSV in between delays the RMC by tens of
+	// milliseconds on those fixes only
+	fix->has_gga_time = parse_time(timebuf, &hour, &min, &sec, &ms);
+
+	if (fix->has_gga_time) {
+		fix->gga_tod_ms = ((hour * 60 + min) * 60 + sec) * 1000 + ms;
+	}
 
 	// quality 0 is "no fix". 1 is GPS, 2 is DGPS, and the rest (RTK, estimated) are all better
 	// positioned than that, so anything non zero counts. this mirrors the pi version accepting
