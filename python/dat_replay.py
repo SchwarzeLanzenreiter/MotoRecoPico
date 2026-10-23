@@ -4,7 +4,7 @@
 A .dat file is a sequence of fixed-length 16-byte records (no header, little-endian):
     uint32 second / uint16 mirisecond / uint16 CAN ID (11bit) / uint8[8] data
 The DLC is not recorded, so every frame is sent as 8 bytes.
-0x7FF / 0x7FE are virtual frames carrying GPS, so they are not sent by default
+0x7FF / 0x7FE / 0x7FD are virtual frames carrying GPS, so they are not sent by default
 (use --include-gps to send them).
 
 Pick the interface to match the firmware on the CANable v2.0:
@@ -18,7 +18,7 @@ import sys
 import time
 
 RECORD = struct.Struct("<IHH8s")
-GPS_IDS = (0x7FF, 0x7FE)
+GPS_IDS = (0x7FF, 0x7FE, 0x7FD)
 
 
 def read_records(path):
@@ -64,7 +64,7 @@ def main():
     p.add_argument("--start", type=float, default=0.0, help="start sending from this elapsed time in seconds")
     p.add_argument("--end", type=float, default=None, help="stop sending at this elapsed time in seconds")
     p.add_argument("--loop", action="store_true", help="start over from the beginning after the last frame")
-    p.add_argument("--include-gps", action="store_true", help="also send the virtual GPS frames 0x7FF/0x7FE")
+    p.add_argument("--include-gps", action="store_true", help="also send the virtual GPS frames 0x7FF/0x7FE/0x7FD")
     p.add_argument("--only", type=parse_ids, default=None,
                    help="send only these IDs (hex, comma separated. e.g. 10c,130)")
     p.add_argument("--exclude", type=parse_ids, default=set(), help="IDs not to send (hex, comma separated)")

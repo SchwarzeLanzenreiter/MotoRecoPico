@@ -354,6 +354,18 @@ static void test_reader(void)
 	check(nmea_reader_push(&reader, '\n') == NULL, "overlong line dropped at the terminator");
 }
 
+static uint64_t le48(const unsigned char *u)
+{
+	uint64_t v = 0;
+	int i;
+
+	for (i = 5; i >= 0; i--) {
+		v = (v << 8) | u[i];
+	}
+
+	return v;
+}
+
 static void test_record(void)
 {
 	struct CANData rec;
@@ -406,6 +418,37 @@ static void test_record(void)
 
 	record_gps_alt_speed(&rec, -410.0, 0.0);
 	check_close(viewer_altitude(rec.data), -410.0, 1e-6, "below sea level round trip");
+
+	// 2026-03-23 12:35:19.300 UTC, the RMC used throughout this file
+	record_gps_time(&rec, 1774269319300LL, GPS_FIX_KIND_3D, 8, 0.9);
+	check(rec.id == GPS_CAN_ID_NUM3, "time frame uses 0x7FD");
+	check(rec.id == 0x7FD, "0x7FD is 2045");
+	check(le48(u) == 1774269319300ULL, "fix time is 48 bit little endian in bytes 0-5");
+	check(u[6] == 0x28, "3D in the high nibble, 8 satellites in the low one");
+	check(u[7] == 9, "HDOP 0.9 is stored as 9");
+
+	// the far end of 48 bits: year 10889, which is the point of six bytes
+	record_gps_time(&rec, 0xFFFFFFFFFFFFLL, GPS_FIX_KIND_DIFF, 12, 1.25);
+	check(le48(u) == 0xFFFFFFFFFFFFULL, "the whole 48 bits survive");
+	check(u[6] == 0x3C, "differential, 12 satellites");
+	check(u[7] == 13, "HDOP rounds to the nearest tenth");
+
+	record_gps_time(&rec, 0, GPS_FIX_KIND_2D, 24, 40.0);
+	check(u[6] == 0x1F, "satellites stop at 15");
+	check(u[7] == 255, "HDOP stops at 25.5");
+
+	record_gps_time(&rec, 0, GPS_FIX_KIND_2D, 4, 0.0);
+	check(u[7] == 0, "HDOP not reported stays 0");
+
+	record_gps_time(&rec, 0, GPS_FIX_KIND_2D, 4, 0.01);
+	check(u[7] == 1, "a tiny HDOP does not turn into \"not reported\"");
+
+	check(record_fix_kind(1, 3, 1) == GPS_FIX_KIND_3D, "GPS fix, GSA says 3D");
+	check(record_fix_kind(1, 2, 1) == GPS_FIX_KIND_2D, "GSA's 2D wins over a stale altitude");
+	check(record_fix_kind(2, 3, 1) == GPS_FIX_KIND_DIFF, "GGA quality 2 is differential");
+	check(record_fix_kind(4, 3, 1) == GPS_FIX_KIND_DIFF, "RTK fixed counts as differential");
+	check(record_fix_kind(1, 0, 1) == GPS_FIX_KIND_3D, "no GSA yet, an altitude means 3D");
+	check(record_fix_kind(1, 0, 0) == GPS_FIX_KIND_2D, "no GSA yet, no altitude means 2D");
 }
 
 // ---------------------------------------------------------------------------

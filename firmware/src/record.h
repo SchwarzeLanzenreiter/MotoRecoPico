@@ -51,6 +51,18 @@ void record_gps_position(struct CANData *rec, double lat_deg, double lon_deg);
 // virtual frame 0x7FE: altitude in bytes 0-3, speed in bytes 4-7
 void record_gps_alt_speed(struct CANData *rec, double alt_m, double speed_mps);
 
+// what kind of fix this is, as GPS_FIX_KIND_*. quality is GGA field 6, fix_mode GSA field 2 (0 when
+// GSA has not been seen), has_altitude whether GGA carried an altitude
+int record_fix_kind(int quality, int fix_mode, int has_altitude);
+
+// virtual frame 0x7FD, one per fix:
+//   bytes 0-5  UTC of the fix in unix milliseconds, 48 bit little endian
+//   byte  6    fix kind (GPS_FIX_KIND_*) in the high nibble, satellites used in the low nibble,
+//              15 meaning 15 or more
+//   byte  7    HDOP x10, rounded, 255 meaning 25.5 or more. 0 means not reported
+void record_gps_time(struct CANData *rec, int64_t unix_ms, int fix_kind, int sats_used,
+	double hdop);
+
 #ifdef __cplusplus
 }
 #endif

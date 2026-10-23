@@ -354,7 +354,7 @@ static bool ig_sample(repeating_timer_t *timer)
 // before the first CAN frame captured after it, so the file comes out in time order
 // ---------------------------------------------------------------------------
 
-#define GPS_PENDING_SLOTS	128		// two records per fix. 3s of a 10Hz receiver is 60
+#define GPS_PENDING_SLOTS	128		// three records per fix. 3s of a 10Hz receiver is 90
 
 typedef struct {
 	struct CANData	rec;		// id and data filled in. the time is set when it is written
@@ -995,13 +995,15 @@ static void gps_rate_report(uint64_t now_us)
 	g_gps_ring_peak = 0;
 }
 
+static void queue_position(uint64_t now_us, uint64_t rx_us);
+
 // rx_us is when the sentence started arriving, and it is the time its records carry. now_us is the
 // loop's clock and only feeds the diagnostics. nothing here writes a record: they are queued for
 // handle_can_frames to put in time order, so this has no write to fail
 static void handle_gps_sentence(const char *sentence, uint64_t now_us, uint64_t rx_us)
 {
 	struct CANData rec;
-	int32_t lon, lat;
+	bool time_frame = false;
 	int result = nmea_parse(&g_fix, sentence);
 
 	if (result == NMEA_RESULT_INVALID) {
@@ -1089,6 +1091,10 @@ static void handle_gps_sentence(const char *sentence, uint64_t now_us, uint64_t 
 			wallclock_sync(g_fix.unix_time, rx_us - frac_us);
 		}
 
+		// the same test the clock uses decides what reaches the file as 0x7FD, so a void RMC's
+		// guess at the date never does
+		time_frame = true;
+
 		if (!was_valid) {
 			logger_debug("gps time acquired");
 		}
@@ -1111,6 +1117,29 @@ static void handle_gps_sentence(const char *sentence, uint64_t now_us, uint64_t 
 			bad.second,
 			nmea_time_plausible(g_fix.unix_time) ? "" : ", and that is not a plausible date");
 	}
+
+	queue_position(now_us, rx_us);
+
+	// after the position, so a reader can pair it with the 0x7FF at or before it. it goes in
+	// whether or not that one did: a standing bike writes no position, and its time still moves.
+	//
+	// sats and HDOP are the last GGA's. RMC carries neither, so depending on the order the
+	// module sends them in they can be one fix old, which is close enough for a weight
+	if (time_frame) {
+		int64_t unix_ms = g_fix.unix_time * 1000 + g_fix.time_ms;
+
+		record_gps_time(&rec, unix_ms,
+			record_fix_kind(g_fix.quality, g_fix.fix_mode, g_fix.has_altitude),
+			g_fix.sats_used, g_fix.hdop);
+		gps_pending_push(&rec, rx_us);
+	}
+}
+
+// the 0x7FF and 0x7FE records of the fix g_fix now holds, if it is one worth writing
+static void queue_position(uint64_t now_us, uint64_t rx_us)
+{
+	struct CANData rec;
+	int32_t lon, lat;
 
 	if (!g_fix.has_fix) {
 		// losing a fix mid ride (a tunnel, a bad antenna connection) restarts the search, and the
@@ -1169,14 +1198,14 @@ static void handle_gps_sentence(const char *sentence, uint64_t now_us, uint64_t 
 	gps_pending_push(&rec, rx_us);
 }
 
-// parses whatever has arrived and queues its records. one sentence makes at most two, so it stops
+// parses whatever has arrived and queues its records. one sentence makes at most three, so it stops
 // while there is not room for that and leaves the rest in the ring for the next pass
 static void handle_gps(uint64_t now_us)
 {
 	uint8_t c;
 	int budget = GPS_RING_BYTES;
 
-	while (budget-- > 0 && gps_pending_free() >= 2 && gps_pop(&c, &g_sentence_rx_us)) {
+	while (budget-- > 0 && gps_pending_free() >= 3 && gps_pop(&c, &g_sentence_rx_us)) {
 		const char *sentence = nmea_reader_push(&g_reader, (char)c);
 
 		if (sentence != NULL) {

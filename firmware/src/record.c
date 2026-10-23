@@ -77,3 +77,58 @@ void record_gps_alt_speed(struct CANData *rec, double alt_m, double speed_mps)
 	put_le32(&rec->data[0], record_encode_alt(alt_m));
 	put_le32(&rec->data[4], record_encode_speed(speed_mps));
 }
+
+int record_fix_kind(int quality, int fix_mode, int has_altitude)
+{
+	if (quality == 2 || quality == 4 || quality == 5) {
+		return GPS_FIX_KIND_DIFF;
+	}
+
+	// GSA only comes every few fixes, but it is the receiver's own answer. GGA's altitude is the
+	// fallback for a module that never sends GSA: it goes empty while the fix is 2D
+	switch (fix_mode) {
+	case 2:	return GPS_FIX_KIND_2D;
+	case 3:	return GPS_FIX_KIND_3D;
+	default: break;
+	}
+
+	return has_altitude ? GPS_FIX_KIND_3D : GPS_FIX_KIND_2D;
+}
+
+void record_gps_time(struct CANData *rec, int64_t unix_ms, int fix_kind, int sats_used,
+	double hdop)
+{
+	uint64_t ms = (unix_ms < 0) ? 0 : (uint64_t)unix_ms;
+	int hdop10;
+	int i;
+
+	rec->id = GPS_CAN_ID_NUM3;
+	memset(rec->data, 0, sizeof(rec->data));
+
+	for (i = 0; i < 6; i++) {
+		rec->data[i] = (char)((ms >> (8 * i)) & 0xFF);
+	}
+
+	if (fix_kind < 0) fix_kind = 0;
+	if (fix_kind > 15) fix_kind = 15;
+	if (sats_used < 0) sats_used = 0;
+	if (sats_used > 15) sats_used = 15;
+
+	rec->data[6] = (char)((fix_kind << 4) | sats_used);
+
+	// the comparison first, so a garbage hdop cannot overflow the int
+	if (!(hdop > 0.0)) {
+		hdop10 = 0;
+	} else if (hdop >= 25.5) {
+		hdop10 = 255;
+	} else {
+		hdop10 = (int)(hdop * 10.0 + 0.5);
+
+		// 0 is taken by "not reported"
+		if (hdop10 < 1) {
+			hdop10 = 1;
+		}
+	}
+
+	rec->data[7] = (char)hdop10;
+}

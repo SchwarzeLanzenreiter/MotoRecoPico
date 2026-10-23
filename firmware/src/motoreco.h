@@ -60,4 +60,15 @@ MR_STATIC_ASSERT(offsetof(struct CANData, data) == 8,        "data must be at of
 #define GPS_CAN_ID_NUM1 2047	// longitude and latitude. 2047 = "7FF"
 #define GPS_CAN_ID_NUM2 2046	// altitude and speed.    2046 = "7FE"
 
+// not in the pi version. added for MotoNavi, which needs the absolute time of each fix: the .dat
+// time is only "since the log started". readers that do not know it skip it like any other id,
+// but it is reserved across every MotoReco repository the same way 7FF and 7FE are
+#define GPS_CAN_ID_NUM3 2045	// fix time and quality.  2045 = "7FD"
+
+// high nibble of 0x7FD byte 6
+#define GPS_FIX_KIND_NONE	0
+#define GPS_FIX_KIND_2D		1
+#define GPS_FIX_KIND_3D		2
+#define GPS_FIX_KIND_DIFF	3	// DGPS/SBAS corrections applied (GGA quality 2), or RTK (4/5)
+
 #endif // MOTORECO_H

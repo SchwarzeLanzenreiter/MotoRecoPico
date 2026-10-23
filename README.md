@@ -69,8 +69,24 @@ GPS rides on CAN IDs that cannot exist, as fixed-point values. **`0x7FF`** carri
 latitude, **`0x7FE`** carries altitude and speed. That way CAN and GPS land in one single time
 series.
 
+**`0x7FD`** (added for MotoNavi, not written by the Pi version) carries the absolute time of each
+fix, since the record time above only counts from the start of the log. One per fix, written when
+the fix's RMC sentence arrives and after any `0x7FF` that sentence produced, so it pairs with the
+`0x7FF` at or just before it. It is written while standing still too, when `0x7FF` is skipped
+because the position has not changed:
+
+| Bytes | Contents |
+|---|---|
+| 0–5 | UTC of the fix, Unix milliseconds, 48-bit little-endian |
+| 6 | Fix kind in the high nibble (0 none, 1 2D, 2 3D, 3 DGPS/SBAS/RTK), satellites used in the low nibble (15 = 15 or more) |
+| 7 | HDOP × 10, rounded (255 = 25.5 or more, 0 = not reported) |
+
+Satellites and HDOP come from the most recent GGA, so they can be one fix older than the time.
+Readers that do not know `0x7FD` skip it like any other ID.
+
 > This format is a **contract shared with MotoRecoLogger (the Pi version) and MotoRecoViewer**;
-> changing it affects all three repositories.
+> changing it affects all three repositories. `0x7FF`, `0x7FE` and `0x7FD` are reserved in every
+> MotoReco repository.
 
 File names are `YYYYMMDD_HHMMSS.dat` (key-off time, local time). The date is unknown until GPS gets
 a fix, so recording starts into `TMPnnnnn.DAT` and the file is renamed to the start time once a fix
