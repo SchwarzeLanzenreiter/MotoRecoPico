@@ -34,6 +34,8 @@ b = pcbnew.LoadBoard(os.path.join(D, "MotoRecoPico.kicad_pcb"))
 rows, notes, skipped = [], [], []
 for fp in sorted(b.Footprints(), key=lambda f: natural(f.GetReference())):
     ref = fp.GetReference()
+    if fp.IsExcludedFromPosFiles():          # copper-only feature (J4 pads)
+        continue
     pos = fp.GetPosition()
     ax, ay = TOMM(pos.x), TOMM(pos.y)
 

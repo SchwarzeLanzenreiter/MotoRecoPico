@@ -199,10 +199,69 @@ ZONES = [
      ['Q1', 'D3']),
 ]
 
+# ----------------------------------------------- v5: the JLC-assembled variant
+# MRP_ASSY=jlc replaces the placement wholesale: every machine-fit SMD on the
+# TOP face (single-side economic assembly), the Pico castellation-soldered flat
+# on the BOTTOM with D6 beside its USB connector, GPS pads gone. Without the
+# forty socket through-holes the top routing field runs the full board width,
+# which is what absorbs the thirteen parts arriving from the bottom face.
+if D.ASSY == 'jlc':
+    EXPLICIT = {
+        'J1': (10.5, 0.0, 0, 'T', 'origin'),
+        'U2': (10.5, 26.0, 90, 'T', 'pad'),
+        'J2': (10.5, 51.6, 0, 'T', 'origin'),
+        # 12V chain, flow order left to right along y=9.75; the shunts (C2,
+        # D2) hang below the V12P run on the right, clear of J1's courtyard
+        'F1': (4.3, 9.75, 0, 'T', 'pad'),       # pad 1 (from J1) on the left
+        'D1': (9.3, 9.75, 180, 'T', 'pad'),     # anode left, cathode right
+        'Q2': (13.9, 9.9, 0, 'T', 'pad'),       # SI2309: S left-low, D right, G upper
+        'C2': (15.9, 13.4, 90, 'T', 'pad'),     # V12P bypass below Q2
+        'D2': (19.2, 11.8, 90, 'T', 'pad'),     # TVS beside the edge
+        # buck pocket under the chain, V5 exiting bottom-right
+        'U4': (13.6, 17.0, 0, 'T', 'pad'),
+        'C14': (10.2, 16.8, 90, 'T', 'origin'),
+        'L1': (18.2, 17.8, 90, 'T', 'origin'),
+        'C16': (14.2, 19.9, 0, 'T', 'origin'),
+        'C15': (19.0, 21.3, 0, 'T', 'origin'),
+        'D3': (18.7, 25.2, 90, 'T', 'pad'),     # V5 -> VSYS, down the right edge
+        # crystal flat against U2's OSC pads (10.82/11.47, 29.5), caps flanking
+        'Y1': (11.1, 33.2, 0, 'T', 'pad'),
+        'C7': (8.2, 33.2, 90, 'T', 'origin'),
+        'C8': (14.0, 33.2, 270, 'T', 'origin'),
+        # ---- BOTTOM: the module itself and the one LED JLC cannot source
+        # Pico 2 soldered by its castellations, USB end at y=61. Centre 33.0
+        # keeps the body (51mm) clear of J1's tails above and of D6 below.
+        'U3': (10.5, 33.0, 180, 'B', 'pad'),
+        # D6 sits BESIDE the module's USB connector (centre x~6.5..14.5,
+        # protruding past y=58.5): moved to the right edge band, emitting
+        # face still on y=61 for the enclosure window.
+        'D6': (17.3, 59.8, 0, 'B', 'pad'),
+        # direct-wire pads in the 1.9mm strip between J1's tail pads (y>=2.86)
+        # and the edge; the flip makes them read V I G H L from the bottom.
+        # 0.5mm left of centre so the V silk letter clears the board edge.
+        'J4': (10.0, 1.5, 0, 'B', 'pad'),
+    }
+    SHUNT_ZONE = None
+    ZONES = [
+        ('gate drive / IG sense', (1.0, 12.2, 9.8, 20.8), 'T',
+         ['Q1', 'C13', 'R1', 'R3', 'R4', 'R2']),
+        ('U2 decoupling west', (1.0, 21.4, 4.7, 32.0), 'T', ['C3', 'C4', 'C5']),
+        ('U2 decoupling east + CAN pull-ups', (16.2, 27.6, 20.0, 34.4), 'T',
+         ['C6', 'R6', 'R7']),
+        ('CAN termination', (3.8, 31.3, 7.8, 34.6), 'T', ['R8']),
+        # R15 last so it packs rightmost, near GP28's castellation (20.2, 42.4)
+        ('SD pull-ups + LED resistor + IG sense', (1.2, 38.4, 20.0, 42.3), 'T',
+         ['C11', 'C10', 'R10', 'R11', 'R12', 'R13', 'R14', 'R15']),
+    ]
+
 # GAP is the clear lane left between neighbouring courtyards. 0.5mm threads a
 # 0.15mm track with clearance either side. Opening it to 0.7 was tried and made
 # routing worse, not better: the parts spread out and every net got longer.
 CLR, GAP, STEP, EDGE = 0.4, 0.5, 0.25, 0.5
+# the packer's fallback rectangle: between the header-hole columns on the hand
+# board, nearly full width once the holes are gone on the JLC board
+if D.ASSY == 'jlc':
+    MIDX0, MIDX1 = 1.0, 20.0
 
 # ------------------------------------------------------------------- board
 board = pcbnew.BOARD()
@@ -219,7 +278,10 @@ ds.SetBoardThickness(MM(1.6))
 # 0.15mm track / 0.15mm clearance. JLCPCB's standard 2-layer process goes down to
 # 0.127mm, so this keeps a margin while giving the router a 0.30mm channel pitch
 # instead of 0.40mm - the difference between routable and not at 21mm wide.
-ds.m_TrackMinWidth = MM(0.127)
+# Freerouting 2.5 necks tracks down to ~0.095mm inside pad escapes (no flag to
+# turn it off). JLCPCB's 4-layer process floor is 0.09/0.09mm, so the jlc build
+# accepts that as the MINIMUM while the netclass keeps routing at RULE width.
+ds.m_TrackMinWidth = MM(0.09 if D.ASSY == 'jlc' else 0.127)
 ds.m_MinClearance = MM(RULE)
 ds.m_CopperEdgeClearance = MM(0.3)
 ds.m_ViasMinSize = MM(0.45)
@@ -287,6 +349,9 @@ def place(ref, cx, cy, rot, side, anchor='pad'):
     fp = load(ref)
     fp.SetReference(ref)
     fp.SetValue(D.PARTS[ref][2])
+    if ref in D.NO_BOM:                      # copper-only feature: no part exists
+        fp.SetAttributes(fp.GetAttributes() | pcbnew.FP_EXCLUDE_FROM_BOM
+                         | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
     board.Add(fp)
     if rot:
         fp.SetOrientationDegrees(rot)
@@ -433,7 +498,11 @@ assert not oob, "PADS OUTSIDE OUTLINE:\n  " + "\n  ".join(oob)
 # Its silkscreen is the module body outline, which is as wide as the board itself,
 # so it runs off both edges and over J2's pads - it belongs on the fab layer too.
 u3 = FP['U3']
-KILL = (pcbnew.F_CrtYd, pcbnew.B_CrtYd, pcbnew.F_SilkS, pcbnew.B_SilkS)
+# jlc: the module lies FLAT on the bottom, so its courtyard is real - keep it
+# (it polices D6 against the body in DRC); only the board-wide silk goes.
+# hand: socketed 8.5mm above the board, courtyard and silk both meaningless.
+KILL = ((pcbnew.F_SilkS, pcbnew.B_SilkS) if D.ASSY == 'jlc' else
+        (pcbnew.F_CrtYd, pcbnew.B_CrtYd, pcbnew.F_SilkS, pcbnew.B_SilkS))
 dropped = [g for g in u3.GraphicalItems() if g.GetLayer() in KILL]
 for g in dropped:
     u3.Remove(g)
@@ -503,20 +572,25 @@ def pad_at(ref, nums):
     return sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
 
 
-# Q2 pads follow the datasheet numbering since the v3.1 PADMAP fix: S=4, G=3,
-# D=1/2/5/6 (the v1 boards had G/S mirrored - see PADMAP in mrp_design).
-# v4: the chain ends at the buck's VIN (U4 pad 3).
-CHAIN = [('V12_RAW', 'J1', ['8'], 'F1', ['1']),
-         ('V12_FUSED', 'F1', ['2'], 'D1', ['2']),
-         ('V12P', 'D1', ['1'], 'Q2', ['4']),
-         ('V12_SW', 'Q2', ['1', '2', '5', '6'], 'U4', ['3'])]
-
-# The lesson of v1: the footprint must agree with DS36685, not with the EAGLE
-# library. Checked on every build from here on.
+# The footprint must agree with the DATASHEET, not with any library - the
+# lesson of v1 (see PADMAP in mrp_design). Checked on every build.
+# jlc: SI2309, standard SOT-23 1=G 2=S 3=D. hand: ZXMP6A17E6Q per DS36685.
+# Either way the chain ends at the buck's VIN (U4 pad 3).
+if D.ASSY == 'jlc':
+    CHAIN = [('V12_RAW', 'J1', ['8'], 'F1', ['1']),
+             ('V12_FUSED', 'F1', ['2'], 'D1', ['2']),
+             ('V12P', 'D1', ['1'], 'Q2', ['2']),
+             ('V12_SW', 'Q2', ['3'], 'U4', ['3'])]
+    _q2_want = {'1': 'Q2_G', '2': 'V12P', '3': 'V12_SW'}
+else:
+    CHAIN = [('V12_RAW', 'J1', ['8'], 'F1', ['1']),
+             ('V12_FUSED', 'F1', ['2'], 'D1', ['2']),
+             ('V12P', 'D1', ['1'], 'Q2', ['4']),
+             ('V12_SW', 'Q2', ['1', '2', '5', '6'], 'U4', ['3'])]
+    _q2_want = {'1': 'V12_SW', '2': 'V12_SW', '3': 'Q2_G',
+                '4': 'V12P', '5': 'V12_SW', '6': 'V12_SW'}
 _q2 = {p.GetNumber(): p.GetNetname() for p in FP['Q2'].Pads()}
-assert _q2 == {'1': 'V12_SW', '2': 'V12_SW', '3': 'Q2_G',
-               '4': 'V12P', '5': 'V12_SW', '6': 'V12_SW'}, \
-    f"Q2 pad map does not match the ZXMP6A17E6Q datasheet: {_q2}"
+assert _q2 == _q2_want, f"Q2 pad map does not match the datasheet: {_q2}"
 total = 0.0
 for net, a, ap, c, cp in CHAIN:
     (x1, y1), (x2, y2) = pad_at(a, ap), pad_at(c, cp)

@@ -16,9 +16,17 @@ package to a KiCad footprint. Two corrections are applied here:
 import os
 import xml.etree.ElementTree as ET
 
-# Chip size for every resistor and capacitor that EAGLE calls C1005. 1608 is the
-# design; 1005 is kept only so the two can be measured against each other.
-# See docs/study-1608-chips.md.
+# MRP_ASSY picks the build: 'hand' is the v4.2 hand-soldered board, 'jlc' the
+# v5 variant JLCPCB assembles (top face only; see docs/study-jlc-assembly.md).
+ASSY = os.environ.get('MRP_ASSY', 'hand')
+assert ASSY in ('hand', 'jlc'), f"MRP_ASSY must be hand or jlc, got {ASSY!r}"
+
+# Chip size for every resistor and capacitor that EAGLE calls C1005. 1608
+# everywhere: the JLC variant FIRST went to 1005 (0402) for density, but
+# JLCPCB's uploader warns that 0402 on a HASL finish risks tombstoning and
+# pushes a +$25 ENIG upgrade. The hole-free v5 top routed first-seed even at
+# 0402 spacing, so 1608 costs nothing except zone area - and its 100nF basics
+# are 50V parts. MRP_CHIP=1005 remains for experiments.
 CHIP = os.environ.get('MRP_CHIP', '1608')
 assert CHIP in ('1005', '1608'), f"MRP_CHIP must be 1005 or 1608, got {CHIP!r}"
 
@@ -376,6 +384,115 @@ PADMAP = {
               '6': '4',                        # S
               '2': '1', '3': '2', '4': '5', '5': '6'},   # D (interchangeable)
 }
+
+
+# ------------------------------- v5: the variant JLCPCB assembles (MRP_ASSY=jlc)
+# Everything SMD moves to the TOP face for single-side economic assembly except
+# D6 (no JLC stock for the side-view LED). The Pico is reflow/hand-soldered flat
+# onto the BOTTOM by its castellations instead of riding a socket - the forty
+# through-holes disappear, which widens the top routing field to the full board.
+# GPS leaves the board entirely: its five wires go straight to the Pico module.
+# Parts study with sources: docs/study-jlc-assembly.md.
+LCSC = {}
+
+# refs that are copper-only features: on the board, but nothing to buy,
+# place or solder, so they stay out of every BOM and CPL
+NO_BOM = set()
+
+
+def _jlc_assembly_variant():
+    # Q2: ZXMP6A17E6Q has no LCSC/JLC stock. SI2309 matches the two ratings the
+    # circuit actually leans on - Vds -60V and Vgs +-20V (13V at load dump) -
+    # and its 2A/0.2ohm are 30x margins over the ~0.3A buck input. STANDARD
+    # SOT-23 pinout 1=G 2=S 3=D; mrp_brd asserts the map per build (v3.1 rule).
+    DEVMAP[('SI2309', '')] = ('SOT23-P', {'G': '1', 'S': '2', 'D': '3'})
+    STOCK['SOT23-P'] = ('Package_TO_SOT_SMD', 'SOT-23')
+    PARTS['Q2'] = ('SI2309', '', 'SI2309')
+    # Y1: HC-49/S through-hole -> 3225 SMD (YXC X322516MLB4SI, JLC Basic).
+    # Pads 2/4 ground the metal lid. CL drops 22pF-era loading to 9pF, so the
+    # load caps become 12pF (trim against the 16MHz tolerance if it matters).
+    DEVMAP[('XTAL-3225', '')] = ('XTAL3225', {'1': '1', '2': '3', 'G': '2 4'})
+    STOCK['XTAL3225'] = ('Crystal', 'Crystal_SMD_3225-4Pin_3.2x2.5mm')
+    PARTS['Y1'] = ('XTAL-3225', '', '16MHz')
+    NETS['GND'].append(('Y1', 'G'))
+    for ref in ('C7', 'C8'):
+        ds, dev, _ = PARTS[ref]
+        PARTS[ref] = (ds, dev, '12pF')
+    # GPS: wired straight to the Pico module, so the pads leave the board and
+    # GP0/GP1/GP6 revert to spare castellations.
+    PARTS.pop('J3')
+    for net in ('GPS_TX', 'GPS_RX', 'GPS_PPS'):
+        NETS.pop(net)
+    for net in list(NETS):
+        NETS[net] = [(p, q) for p, q in NETS[net] if p != 'J3']
+    for pad in ('1', '2', '9'):
+        U3_REMAP.pop(pad)
+    # Pico: castellation-soldered SMD on the bottom, not socketed. The stock
+    # KiCad SMD footprint's pads overhang this 21mm (= module-width) outline,
+    # so mrp_fp.py generates a flush-trimmed copy.
+    CUSTOM['RPI-PICO2-THT'] = 'Pico2-SMD-Flush'
+    # machine-placed parts need no hand-soldering land extensions
+    STOCK['TSOT26-HS'] = ('Package_TO_SOT_SMD', 'TSOT-23-6')
+    CUSTOM.pop('L4030')
+    STOCK['L4030'] = ('Inductor_SMD', 'L_Abracon_ASPI-4030S')
+    # sizes: C16 sees only the ~5.3V BST-SW differential -> 0402/16V is fine;
+    # C13 needs 25V, which 0603 basics top out below -> 0805; the 10uF bulks
+    # C6/C11 stay 0603 (0402 10uF is not worth having)
+    DEVMAP[('C-1005', '')] = ('C1005', {'1': '1', '2': '2'})
+    PARTS['C16'] = ('C-1005', '', '100nF/50V')   # follows CHIP; 0603 basic is 50V
+    PARTS['C13'] = ('C-2012', '', '10uF/25V')
+    PKG_OVERRIDE['C6'] = 'C1608'
+    PKG_OVERRIDE['C11'] = 'C1608'
+    # J4: five solder pads between J1 and the y=0 edge on the Pico face, for
+    # wiring the loom directly (future option). 12V lands UPSTREAM of F1 so the
+    # PTC still protects a direct feed; the other four parallel J1's pins.
+    # Pad order L H I G V matches the left-to-right order of the J1 pins they
+    # tap, so each escape drops straight down on B.Cu - no crossings, no vias
+    # (ses_import draws them; dsn_export hides J4 from the autorouter).
+    DEVMAP[('PAD5-DIRECT', '')] = ('PAD5-DIRECT',
+                                   {'L': '1', 'H': '2', 'I': '3', 'G': '4', 'V': '5'})
+    CUSTOM['PAD5-DIRECT'] = 'PAD-5P-DIRECT'
+    PARTS['J4'] = ('PAD5-DIRECT', '', 'DIRECT-WIRE')
+    NO_BOM.add('J4')
+    NETS['V12_RAW'].append(('J4', 'V'))
+    NETS['IG_RAW'].append(('J4', 'I'))
+    NETS['GND'].append(('J4', 'G'))
+    NETS['CANH'].append(('J4', 'H'))
+    NETS['CANL'].append(('J4', 'L'))
+
+    # LCSC numbers verified 2026-10-16 (blank = pick at order time): the BOM
+    # generator adds these as the JLC auto-match column.
+    LCSC.update({
+        'U2': 'C184944', 'U4': 'C2071056', 'L1': 'C62684',
+        'D1': 'C8598', 'D3': 'C8598', 'Q1': 'C20526',
+        'Q2': 'C10493',          # Vishay Si2309CDS-T1-GE3
+        # any maker's SMAJ16A fits (JEDEC part); Diodes C134959 ran out at
+        # order time 2026-10. SMAJ18A is also fine since v4: the 28V ceiling
+        # died with U1, the AP63205 takes 32V.
+        'D2': 'C74561',          # Littelfuse SMAJ16A
+        'F1': 'C3761685',        # Littelfuse 1206L110/16WR
+        'Y1': 'C13738',          # YXC X322516MLB4SI
+        'C2': 'C14663',          # 100nF/50V 0603
+        'C6': 'C19702', 'C11': 'C19702',
+    })
+    if CHIP == '1608':
+        LCSC.update({
+            'C3': 'C14663', 'C4': 'C14663', 'C5': 'C14663', 'C10': 'C14663',
+            'C16': 'C14663',
+            'R1': 'C25803', 'R2': 'C25803', 'R3': 'C25803',   # 100k
+            'R4': 'C31850',                                   # 22k
+            'R6': 'C25804', 'R7': 'C25804', 'R10': 'C25804', 'R11': 'C25804',
+            'R12': 'C25804', 'R13': 'C25804', 'R15': 'C25804',  # 10k
+            'R8': 'C22787',                                   # 120R
+            'R14': 'C21190',                                  # 1k
+        })
+    else:
+        LCSC.update({'C3': 'C1525', 'C4': 'C1525', 'C5': 'C1525',
+                     'C10': 'C1525', 'C16': 'C1525'})
+
+
+if ASSY == 'jlc':
+    _jlc_assembly_variant()
 
 
 def footprint_of(ref):

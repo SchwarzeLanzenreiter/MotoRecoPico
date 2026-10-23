@@ -2,6 +2,8 @@
 """Measure the finished board for the design document."""
 import sys, io, os, pcbnew
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mrp_design as DSG
 D = r"E:\Claude\MotoRecoPico\cad\kicad"
 TOMM = pcbnew.ToMM
 b = pcbnew.LoadBoard(os.path.join(D, "MotoRecoPico.kicad_pcb"))
@@ -28,8 +30,8 @@ def pad(ref, num):
 
 CHAIN = [('V12_RAW', 'J1', '8', 'F1', '1'),
          ('V12_FUSED', 'F1', '2', 'D1', '2'),
-         ('V12P', 'D1', '1', 'Q2', '4'),
-         ('V12_SW', 'Q2', '1', 'U4', '3'),
+         ('V12P', 'D1', '1', 'Q2', '2' if DSG.ASSY == 'jlc' else '4'),
+         ('V12_SW', 'Q2', '3' if DSG.ASSY == 'jlc' else '1', 'U4', '3'),
          ('SW_5V', 'U4', '5', 'L1', '1')]
 tot = 0.0
 for name, ra, pa, rb, pb in CHAIN:

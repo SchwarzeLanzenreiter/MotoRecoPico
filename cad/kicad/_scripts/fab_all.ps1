@@ -16,6 +16,9 @@ $fab = "$d\fab"
 & $k sch export bom --fields "Reference,Value,Footprint,`${QUANTITY}" --labels "Designator,Comment,Footprint,Qty" -o "$fab\MotoRecoPico-bom.csv" "$d\MotoRecoPico.kicad_sch" | Out-Null
 & $py "$sc\jlc_bom.py"
 & $py "$sc\jlc_cpl.py"
+& $py "$sc\jlc_cpl.py" smt
+# top-face-only assembly pair (JLC fits the fine-pitch top; the rest is hand work)
+& $py "$sc\jlc_top.py"
 & $py "$sc\xcheck.py"
 & $k pcb export svg --layers "F.Cu,F.Silkscreen,F.Mask,Edge.Cuts" --page-size-mode 2 --exclude-drawing-sheet -o "$fab\top.svg" $brd 2>&1 | Select-String "プロット|Plotted" | Out-Null
 & $k pcb export svg --layers "B.Cu,B.Silkscreen,B.Mask,Edge.Cuts" --page-size-mode 2 --exclude-drawing-sheet --mirror -o "$fab\bottom.svg" $brd 2>&1 | Select-String "プロット|Plotted" | Out-Null

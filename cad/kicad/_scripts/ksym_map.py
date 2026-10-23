@@ -25,6 +25,13 @@ SYMMAP = {
     'D5': 'Device:D_TVS_Dual_ACA',
     'D6': 'Device:LED',
 }
+# v5 (MRP_ASSY=jlc): SI2309 is a plain 3-pin PMOS and the crystal becomes a
+# 4-pad 3225 whose lid pads ground (symbol pins 2/4 sit on the same point).
+if D.ASSY == 'jlc':
+    SYMMAP['J4'] = 'Connector_Generic:Conn_01x05'
+    SYMMAP['Q2'] = 'Transistor_FET:Q_PMOS_GSD'
+    SYMMAP['Y1'] = 'Device:Crystal_GND24'
+
 for _r in D.PARTS:
     SYMMAP.setdefault(_r, 'Device:R' if _r.startswith('R') else 'Device:C')
 

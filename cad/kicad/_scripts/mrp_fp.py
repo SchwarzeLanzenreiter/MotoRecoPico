@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Build the five MotoRecoPico footprints KiCad's stock libraries do not cover.
+"""Build the seven MotoRecoPico footprints KiCad's stock libraries do not cover.
 
 KiCad footprint coordinates are Y-DOWN, so every Y here is negated relative to
 the EAGLE library the geometry was originally derived from.
@@ -174,6 +174,55 @@ line(f, -1.99, 2.12, 1.99, 2.12)
 rect(f, -2, -2, 2, 2, pcbnew.F_Fab, 0.1)
 courtyard(f, -3.3, -2.25, 3.3, 2.25)
 save(f, "L_4030_HandSolder")
+
+# ------------------------------------------- 6. Pico 2 castellated, flush carrier
+# v5 (JLC build): the Pico solders flat onto the BOTTOM face by its
+# castellations. KiCad's RaspberryPi_Pico_SMD assumes a carrier WIDER than the
+# module - every pad is 3.2mm long and sticks 0.79mm past the module edge,
+# which on this 21mm-wide board (= exactly the module width) means past the
+# board outline. These pads keep the stock 2.54mm grid and inner edge (x 8.1)
+# but stop 0.3mm inside the outline: the lap joint under the module's own
+# 1.4mm land ring is ~1.1mm deep, and the castellation groove still reaches
+# the pad for an iron. Numbering matches the module: pad 1 at the USB end.
+f = new_fp("Pico2-SMD-Flush",
+           "Raspberry Pi Pico 2 soldered by its castellations onto a carrier of "
+           "the SAME 21mm width: 40 pads 2.1 x 1.6mm on the stock 2.54mm grid, "
+           "trimmed to end 0.3mm inside the board edge. Body 51 x 21mm flat on "
+           "the board; USB connector overhangs the pad-1 end.",
+           "raspberry pi pico 2 castellated SMD flush", smd=True)
+for i in range(20):
+    y = -24.13 + i * 2.54
+    smd(f, str(i + 1), -9.15, y, 2.1, 1.6)         # pads 1..20 up the left edge
+    smd(f, str(40 - i), 9.15, y, 2.1, 1.6)         # pads 40..21 on the right
+line(f, -10.49, -25.5, 10.49, -25.5, pcbnew.F_Fab, 0.2)   # USB end of the body
+line(f, -10.49, 25.5, 10.49, 25.5, pcbnew.F_Fab, 0.2)
+line(f, -7.6, -25.6, -7.6, -26.4, w=0.3)                   # pin-1 tick, USB end
+courtyard(f, -10.5, -25.6, 10.5, 25.6)
+save(f, "Pico2-SMD-Flush")
+
+# ------------------------------------------- 7. direct-wire pads at the MQS end
+# v5: five solder pads between J1's holes and the y=0 board edge, on the PICO
+# (bottom) face, for wiring the vehicle loom directly instead of through the
+# MQS coupler. Reading L H I G V (= CANL, CANH, IGN, GND, +12V) left to right
+# when looking AT the bottom face - the same left-to-right order as the J1
+# pins they tap, so the five escapes run straight down without crossing or
+# vias. The strip is only 1.9mm deep (J1's tail pads start at y2.86), so the
+# pads are 2.4 x 1.8mm and the letters sit in the 1.6mm gaps beside them.
+f = new_fp("PAD-5P-DIRECT",
+           "Direct-wire solder pads for the vehicle loom: 1 CANL, 2 CANH, "
+           "3 IGN, 4 GND, 5 +12V (upstream of F1, so the PTC still protects) "
+           "on a 4.0mm pitch, 2.4 x 1.8mm each. Silk letters L H I G V beside "
+           "the pads. Mount on the Pico face, between the MQS holes and the edge.",
+           "direct wire solder pads vehicle 12V IGN CAN", smd=True)
+for i, lab in enumerate("LHIGV"):
+    x = -8.0 + 4.0 * i
+    smd(f, str(i + 1), x, 0, 2.4, 1.8)
+    t = pcbnew.PCB_TEXT(f)
+    t.SetText(lab); t.SetPosition(V(x - 2.0, 0)); t.SetLayer(pcbnew.F_SilkS)
+    t.SetTextSize(pcbnew.VECTOR2I(MM(0.7), MM(0.7))); t.SetTextThickness(MM(0.12))
+    f.Add(t)
+courtyard(f, -9.5, -1.15, 9.5, 1.15)
+save(f, "PAD-5P-DIRECT")
 
 # ------------------------------------------------------------------- verify
 print("\nreloading from disk:")

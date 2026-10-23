@@ -27,6 +27,31 @@ for t in list(b.GetTracks()):
     except AttributeError:
         pass
 
+# J4's five direct-wire pads are scripted escapes (ses_import draws them
+# straight from the J1 barrels, no vias), so the router must neither route
+# them nor build anything through their strip. Hide the footprint and fence
+# off the strip below J1's holes on B.Cu.
+if any(fp.GetReference() == 'J4' for fp in b.Footprints()):
+    for fp in list(b.Footprints()):
+        if fp.GetReference() == 'J4':
+            b.Remove(fp)
+            fp.thisown = 0
+    # the pad strip itself, plus the three lanes the back-row escapes
+    # (CANL x15.5, CANH x11.5, +12V x3.5) drop through between the front-row
+    # barrels - the front-row escapes (IGN, GND) hug their own barrels and
+    # need no lane of their own
+    rects = [(0, 0, W, 2.8)]
+    rects += [(x - 0.45, 2.8, x + 0.45, 6.3) for x in (15.5, 11.5, 3.5)]
+    for x1, y1, x2, y2 in rects:
+        ka = pcbnew.ZONE(b)
+        ka.SetIsRuleArea(True)
+        ka.SetDoNotAllowTracks(True); ka.SetDoNotAllowVias(True)
+        ka.SetLayer(pcbnew.B_Cu)
+        o = ka.Outline(); o.NewOutline()
+        for x, y in ((x1, y1), (x2, y1), (x2, y2), (x1, y2)):
+            o.Append(MM(x), MM(y))
+        b.Add(ka); ka.thisown = 0
+
 gnd = b.FindNet('GND')
 # On four layers only the inner layers are handed over as planes - pouring GND on
 # F and B too was tried and left the router less room on the two signal layers.

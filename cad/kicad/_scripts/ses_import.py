@@ -13,6 +13,34 @@ tracks = [t for t in b.GetTracks()]
 vias = [t for t in tracks if t.GetClass() == 'PCB_VIA']
 print(f"ImportSpecctraSES -> {ok}: {len(tracks)-len(vias)} tracks, {len(vias)} vias")
 
+# J4 (direct-wire pads) is hidden from the autorouter by dsn_export: each pad
+# sits in line of sight of the J1 barrel that feeds it (same left-to-right
+# order), so the five escapes are drawn here on B.Cu as a straight drop plus
+# one slanted entry - no vias. The session import above wipes all tracks,
+# which is why this cannot live in mrp_brd.
+j4 = next((fp for fp in b.Footprints() if fp.GetReference() == 'J4'), None)
+if j4:
+    j1 = next(fp for fp in b.Footprints() if fp.GetReference() == 'J1')
+    src = {p.GetNetname(): p.GetPosition() for p in j1.Pads() if p.GetNetname()}
+
+    def seg(x1, y1, x2, y2, net):
+        t = pcbnew.PCB_TRACK(b)
+        t.SetStart(pcbnew.VECTOR2I(MM(x1), MM(y1)))
+        t.SetEnd(pcbnew.VECTOR2I(MM(x2), MM(y2)))
+        t.SetWidth(MM(0.4)); t.SetLayer(pcbnew.B_Cu); t.SetNet(net)
+        b.Add(t); t.thisown = 0
+
+    for p in j4.Pads():
+        s, e = src[p.GetNetname()], p.GetPosition()
+        sx, sy = pcbnew.ToMM(s.x), pcbnew.ToMM(s.y)
+        ex, ey = pcbnew.ToMM(e.x), pcbnew.ToMM(e.y)
+        if sy > 5.0:                    # J1 back row: drop between the front-
+            seg(sx, sy, sx, 2.8, p.GetNet())      # row barrels, slant into the pad
+            seg(sx, 2.8, ex, ey, p.GetNet())
+        else:                           # J1 front row: straight slant
+            seg(sx, sy, ex, ey, p.GetNet())
+    print("J4 escapes drawn: 5 pads wired from J1 on B.Cu, 0 vias")
+
 # v2: every pad joins the pour through THERMAL SPOKES. v1 used solid joints and
 # hand-soldering the boards proved them miserable - every grounded pin sinks
 # straight into the plane. The v1 worry (spokes not reaching in the 15mm strip

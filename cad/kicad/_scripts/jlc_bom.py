@@ -6,6 +6,8 @@ that is not in the CPL is an error on upload. The through-hole parts (J1, U1, U3
 Y1) are hand-fitted, so they come out of the SMT BOM and go into a separate list.
 """
 import sys, io, os, csv, pcbnew
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mrp_design as DSG
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 D = r"E:\Claude\MotoRecoPico\cad\kicad"
 
@@ -47,6 +49,15 @@ for r in body:
 # BOM and CPL in the same order, so the two can be read side by side
 smt.sort(key=lambda r: natural(refs(r[0])[0]))
 hand.sort(key=lambda r: natural(refs(r[0])[0]))
+
+# the jlc build carries the verified LCSC numbers so the uploader auto-matches
+if DSG.LCSC:
+    head = head + ["LCSC Part #"]
+    for rows_ in (smt, hand):
+        for r in rows_:
+            rr = refs(r[0])
+            codes = {DSG.LCSC.get(x, '') for x in rr}
+            r.append(codes.pop() if len(codes) == 1 else '')
 
 for name, data in (("MotoRecoPico-bom.csv", smt),
                    ("MotoRecoPico-bom-tht.csv", hand)):

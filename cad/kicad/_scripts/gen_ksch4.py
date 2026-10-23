@@ -85,6 +85,17 @@ P = {
     'R14': (250, 158, 0),    # +5V on top
     'D6':  (250, 167, 90),   # LED below, cathode down to the GPIO label
 }
+# ---- v5 overrides (MRP_ASSY=jlc), part 1: parts and positions. No GPS block,
+# a 3-pin PMOS for Q2, a grounded-lid 3225 crystal for Y1.
+if D.ASSY == 'jlc':
+    del P['J3']
+    P['J4'] = (24, 58, 180)     # direct-wire pads, drawn under J1
+    P['Q2'] = (82, 40, 180)     # G right, S top on the rail drop, D below
+    P['R1'] = (94, 37, 0)
+    P['C13'] = (104, 37, 180)
+    P['R2'] = (90, 44, 0)
+    P['Y1'] = (76, 120, 270)    # unchanged spot; pins 2/4 (lid GND) at (72,120)
+
 assert sorted(P) == sorted(list(D.PARTS) + list(FLAGS)), \
     f"placement mismatch: {set(P) ^ set(list(D.PARTS) + list(FLAGS))}"
 
@@ -168,8 +179,9 @@ HANDLED = {
 # labels dropped onto hand wires (net, x, y, angle) - CANH/CANL reach J1 by
 # name, VSYS reaches the Pico
 HAND_LABELS = [
-    ('CANH', 74, 99, 0), ('CANL', 74, 101, 0), ('VSYS', 158, 50, 0),
-    ('CANH', 36, 37, 0), ('CANL', 36, 39, 0),
+    ('CANH', 74, 99, 0, 'left'), ('CANL', 74, 101, 0, 'left'),
+    ('VSYS', 158, 50, 0, 'left'),
+    ('CANH', 36, 37, 0, 'left'), ('CANL', 36, 39, 0, 'left'),
 ]
 # extra J1-side label wires (stubs drawn by hand so their lengths differ)
 HAND['CANH'].append(((28, 37), (36, 37)))
@@ -196,6 +208,34 @@ NOTES = [
     ("SD pull-ups", 178, 88),
 ]
 
+# ---- v5 overrides, part 2: the wires redrawn for the new pin offsets
+if D.ASSY == 'jlc':
+    HAND['V12P'] = [((49, 33), (104, 33)), ((56, 33), (56, 36)),
+                    ((66, 33), (66, 36)), ((80, 33), (80, 36)),
+                    ((94, 33), (94, 34)), ((104, 33), (104, 34))]
+    HAND['V12_SW'] = [((80, 44), (80, 50)), ((80, 50), (96, 50)),
+                      ((94, 50), (94, 54)), ((94, 54), (96, 54))]
+    HAND['Q2_G'] = [((86, 40), (104, 40)), ((90, 40), (90, 41))]
+    HAND['Q1_C'] = [((90, 47), (90, 58))]
+    # J1's ground elbow stays; J3's is gone; the crystal lid grounds through a
+    # short stub ending in a GND net label (a GND symbol's graphic would lie
+    # across the XTAL2 row)
+    HAND['GND'] = [((28, 41), (44, 41)), ((44, 41), (44, 45)),
+                   ((72, 120), (70, 120))]
+    del HAND['V3V3']
+    HANDLED.difference_update({('J3', '1'), ('J3', '2')})
+    HANDLED.update({('Y1', '3'), ('Y1', '2'), ('Y1', '4')})
+    HAND_LABELS.append(('GND', 70, 120, 0, 'right'))
+    # J4 connects purely by name: its stubs are auto-labelled, so the J1-F1
+    # wire needs the matching label to merge into one V12_RAW net
+    HAND_LABELS.append(('V12_RAW', 30, 33, 0, 'left'))
+    NOTES.append(("J4: direct-wire pads on the Pico face (V=12V I=IGN G=GND H=CANH L=CANL)", 18, 66))
+    HAND_POWER[:] = [hp for hp in HAND_POWER
+                     if (hp[1], hp[2]) not in ((281, 166), (290, 151))]
+    TITLES[:] = [t for t in TITLES if not t[0].startswith('GPS')]
+    NOTES.append(("GPS module: 5 wires straight to the Pico (GP0/GP1/GP6 + 3V3/GND)", 180, 172))
+
+
 # --------------------------------------------------------------- net plumbing
 NETPINS = {}
 for net in D.NETS:
@@ -207,8 +247,8 @@ wires, junctions, labels, powersyms, noconn = [], [], [], [], []
 for net, segs in HAND.items():
     for (x1, y1), (x2, y2) in segs:
         wires.append((x1 * G, y1 * G, x2 * G, y2 * G, net))
-for net, x, y, a in HAND_LABELS:
-    labels.append((net, x * G, y * G, a, 'left' if a == 0 else 'right'))
+for net, x, y, a, just in HAND_LABELS:
+    labels.append((net, x * G, y * G, a, just))
 for lib, x, y, r in HAND_POWER:
     powersyms.append((lib, x * G, y * G, r))
 
@@ -337,7 +377,7 @@ for net, segs in HAND.items():
     assert len(comp_of_pin) <= 1 or have_label, \
         f"{net}: hand wires form {len(comp_of_pin)} separate islands"
 # 3) labels sit on wires of their own net
-for net, x, y, a in HAND_LABELS:
+for net, x, y, a, _just in HAND_LABELS:
     px, py = x * G, y * G
     ok = any(nn == net and ((px, py) in ((x1, y1), (x2, y2))
                             or on_interior(px, py, x1, y1, x2, y2))
@@ -424,7 +464,7 @@ def sym_block(ref, lib_id, sx, sy, rot, val, fp, tag=""):
 \t\t(at {sx:g} {sy:g} {rot})
 \t\t(unit 1)
 \t\t(exclude_from_sim no)
-\t\t(in_bom {"no" if tag or ref in FLAGS else "yes"})
+\t\t(in_bom {"no" if tag or ref in FLAGS or ref in D.NO_BOM else "yes"})
 \t\t(on_board {"no" if tag or ref in FLAGS else "yes"})
 \t\t(dnp no)
 \t\t(uuid {q(uid(tag, ref))})
