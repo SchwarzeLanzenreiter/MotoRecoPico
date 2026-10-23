@@ -10,6 +10,18 @@ The DLC is not recorded, so every frame is sent as 8 bytes.
 Pick the interface to match the firmware on the CANable v2.0:
     slcan (as shipped)  : --interface slcan  --channel COM5
     candleLight (gs_usb): --interface gs_usb --channel 0
+
+MotoRecoPico listens only and never acknowledges a frame. With nothing else on the bus to ACK, the
+CANable would resend its first frame forever, so with slcan this turns automatic retransmission off
+(A0) and every frame is sent once. Up to ~16 frames can be lost at the start while the CANable is
+still error-active; after that it is error-passive and the Pico receives the frames.
+
+With A0, a frame that fails for want of an ACK takes the frames queued behind it in the CANable's
+3-deep transmit FIFO down with it: on 20261023_200818.dat only the first frame of every
+same-millisecond burst arrived and 49% were lost. So frames are handed over at least --min-gap ms
+apart (default 0.5, about one frame plus its error tail at 500 kbps), which keeps that FIFO at one
+frame. Use --retransmit when another node acknowledges (a real vehicle bus, or a second interface
+in normal mode); the gap then defaults to 0.
 """
 
 import argparse
@@ -45,9 +57,35 @@ def open_bus(args):
     if args.interface == "slcan":
         kwargs["tty_baudrate"] = 115200  # USB CDC, so the actual value is irrelevant
     try:
-        return can, can.Bus(**kwargs)
+        bus = can.Bus(**kwargs)
     except Exception as e:  # noqa: BLE001 - show the reason the connection failed as-is
         sys.exit(f"cannot open the CAN interface ({args.interface} {args.channel}): {e}")
+    if not args.retransmit:
+        disable_retransmission(bus, args.interface)
+    return can, bus
+
+
+def disable_retransmission(bus, interface):
+    """Send A0 (canable2-fw: automatic retransmission off). It is only accepted while the channel is
+    closed, and python-can has no public call for a raw command, hence _write/_read."""
+    if interface != "slcan":
+        print(f"warning: cannot turn automatic retransmission off on {interface}. MotoRecoPico does not "
+              "ACK, so with no other node on the bus the first frame is resent forever", file=sys.stderr)
+        return
+    bus.close()
+    time.sleep(0.05)
+    bus.flush()  # drop a reply to C, from firmware that sends one
+    bus._write("A0")
+    # canable2-fw answers no command at all (its replies are commented out in usbd_cdc_if.c), so
+    # silence is the normal case there. a BEL is another slcan firmware saying it has no A command
+    reply = bus._read(0.5)
+    bus.open()
+    if reply is not None and reply.endswith("\a"):
+        print("warning: the CANable rejected A0. its firmware cannot turn retransmission off, and the "
+              "first frame may be resent forever", file=sys.stderr)
+    else:
+        print("automatic retransmission off (A0): up to ~16 frames at the start may not reach a listen-only "
+              "node", file=sys.stderr)
 
 
 def main():
@@ -64,6 +102,11 @@ def main():
     p.add_argument("--start", type=float, default=0.0, help="start sending from this elapsed time in seconds")
     p.add_argument("--end", type=float, default=None, help="stop sending at this elapsed time in seconds")
     p.add_argument("--loop", action="store_true", help="start over from the beginning after the last frame")
+    p.add_argument("--retransmit", action="store_true",
+                   help="keep the CANable's automatic retransmission on. only when another node ACKs")
+    p.add_argument("--min-gap", type=float, default=None,
+                   help="least time between two frames in ms, so a frame that gets no ACK does not take "
+                        "the ones queued behind it down too (default: 0.5, or 0 with --retransmit)")
     p.add_argument("--include-gps", action="store_true", help="also send the virtual GPS frames 0x7FF/0x7FE/0x7FD")
     p.add_argument("--only", type=parse_ids, default=None,
                    help="send only these IDs (hex, comma separated. e.g. 10c,130)")
@@ -74,6 +117,11 @@ def main():
 
     if args.speed < 0:
         p.error("--speed must be 0 or more")
+    if args.min_gap is None:
+        args.min_gap = 0.0 if args.retransmit else 0.5
+    if args.min_gap < 0:
+        p.error("--min-gap must be 0 or more")
+    min_gap = args.min_gap / 1000.0
     if not args.dry_run and args.channel is None and args.interface in ("slcan", "gs_usb"):
         p.error(f"--interface {args.interface} needs --channel "
                 f"(e.g. {'COM5' if args.interface == 'slcan' else '0'})")
@@ -103,6 +151,7 @@ def main():
         print(f"connected to {args.interface} {args.channel} @ {args.bitrate} bps", file=sys.stderr)
 
     sent = errors = 0
+    last_send = 0.0
     try:
         while True:
             t0_log = frames[0][0]
@@ -115,6 +164,10 @@ def main():
                 if args.dry_run or args.verbose:
                     print(f"{t:10.3f}  {can_id:03X}  {data.hex(' ').upper()}")
                 if bus is not None:
+                    # a busy wait: sleep() cannot be trusted below a millisecond on Windows
+                    while time.perf_counter() - last_send < min_gap:
+                        pass
+                    last_send = time.perf_counter()
                     msg = can.Message(arbitration_id=can_id, data=data, is_extended_id=False)
                     try:
                         bus.send(msg, timeout=0.1)

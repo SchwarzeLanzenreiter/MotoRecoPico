@@ -46,8 +46,9 @@ typedef struct {
 	uint8_t		data[8];
 } can_frame_t;
 
-// brings up SPI0 and the controller. loopback is the bench self test mode: frames sent with
-// mcp25625_send() come straight back without a bus or an acknowledge
+// brings up SPI0 and the controller in listen only mode: it receives every frame and puts nothing
+// on the bus, not even an acknowledge. loopback is the bench self test mode instead: frames sent
+// with mcp25625_send() come straight back without a bus or an acknowledge
 bool mcp25625_init(bool loopback);
 
 // takes one frame out of the receive ring. false when the ring is empty

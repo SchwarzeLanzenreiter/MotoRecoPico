@@ -25,6 +25,19 @@ Copy `build/motorecopico.uf2` onto a Pico booted in BOOTSEL mode.
 To exercise the driver without a CAN bus, build with `-DCAN_SELF_TEST=ON`. It puts the MCP25625
 into loopback and checks once at startup that a transmitted frame comes back.
 
+The controller otherwise runs in **listen-only** mode and never drives the bus, not even with an
+ACK. On the bike the ECUs acknowledge each other. On a bench with only a CANable and the Pico,
+nobody acknowledges, so `python/dat_replay.py` switches the CANable's automatic retransmission off
+(`A0`). The CANable then counts an ACK error per frame; for up to the first 16 frames, while it is
+still error-active, its error flag corrupts each frame and the Pico drops it. From then on it is
+error-passive, its error flag is recessive, and the Pico receives the frames.
+
+One more catch with `A0`: a frame that fails for want of an ACK takes the frames waiting behind it
+in the CANable's 3-deep transmit FIFO down with it. Replaying back-to-back frames lost 49%
+(`20261023_200818.dat`: only the first frame of each same-millisecond burst arrived, and the loss
+repeated every four frames), so `dat_replay.py` hands frames over at least `--min-gap` (0.5 ms)
+apart.
+
 ## Tests
 
 The tests cover everything that does not touch hardware: the NMEA parser, record encoding, the
@@ -95,7 +108,7 @@ exactly 50 ms spacing).
 
 | | Raspberry Pi version | Pico version |
 |---|---|---|
-| CAN | SocketCAN (`can0`) | MCP25625 directly over SPI1. Interrupt-driven reception |
+| CAN | SocketCAN (`can0`) | MCP25625 directly over SPI1. Interrupt-driven reception. **Listen-only**: sends no ACK and no error frames |
 | GPS | gpsd | NMEA on UART0, parsed in-house |
 | Storage | `fopen`/`fwrite` on ext4 | FatFs plus our own SD SPI driver |
 | Time | NTP-synchronized system clock | GPS time (there is no RTC and no backup) |

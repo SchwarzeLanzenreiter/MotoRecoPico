@@ -67,6 +67,7 @@ _Static_assert(SPI_INSTANCE_OF(PIN_CAN_MISO) == 1 && SPI_FUNC_OF(PIN_CAN_MISO) =
 #define CANCTRL_REQOP_MASK		0xE0
 #define CANCTRL_REQOP_NORMAL	0x00
 #define CANCTRL_REQOP_LOOPBACK	0x40
+#define CANCTRL_REQOP_LISTEN	0x60
 #define CANCTRL_REQOP_CONFIG		0x80
 
 #define EFLG_RX0OVR	0x40
@@ -343,7 +344,14 @@ bool mcp25625_init(bool loopback)
 	mcp_write_reg(REG_EFLG, 0x00);
 
 	// CLKOUT stays off: the pin is not connected on this board (docs/netlist.md section 3.6)
-	if (!set_mode(loopback ? CANCTRL_REQOP_LOOPBACK : CANCTRL_REQOP_NORMAL)) {
+	//
+	// listen only, never normal. a logger has nothing to say on the bus, and normal mode is not
+	// silent even without a single transmit: it drives an acknowledge into every frame it
+	// receives and an error frame into every one it thinks is broken, so a wrong bitrate or bad
+	// wiring would disturb the bike. the cost is on the bench: a sender with no other node to
+	// acknowledge it gets no ACK from us, so dat_replay.py turns the CANable's automatic
+	// retransmission off (A0)
+	if (!set_mode(loopback ? CANCTRL_REQOP_LOOPBACK : CANCTRL_REQOP_LISTEN)) {
 		return false;
 	}
 
